@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 type User struct {
 	Email string
 }
@@ -39,13 +41,24 @@ func (h Handler) SignUp(u User) error {
 		return err
 	}
 
-	if err := h.newsletterClient.AddToNewsletter(u); err != nil {
-		return err
-	}
-
-	if err := h.notificationsClient.SendNotification(u); err != nil {
-		return err
-	}
+	// we dont want to block the user here
+	asyncRun(func() error {
+		return h.newsletterClient.AddToNewsletter(u)
+	})
+	asyncRun(func() error {
+		return h.notificationsClient.SendNotification(u)
+	})
 
 	return nil
+}
+
+func asyncRun(f func() error) {
+	go func() {
+		for {
+			if err := f(); err == nil {
+				return
+			}
+			time.Sleep(1500 * time.Millisecond)
+		}
+	}()
 }
