@@ -35,9 +35,6 @@ func main() {
 		sub,
 		func(msg *message.Message) error {
 			temperature := string(msg.Payload)
-			if err != nil {
-				return err
-			}
 			fmt.Println("Temperature read:", temperature)
 
 			return nil

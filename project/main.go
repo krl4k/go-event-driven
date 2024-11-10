@@ -1,15 +1,15 @@
 package main
 
 import (
+	"context"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
+	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog"
 	"os"
 	"tickets/internal/application/services"
 	"tickets/internal/infrastructure/clients"
 	"tickets/internal/infrastructure/event_publisher"
-	eventHandlers "tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
 
 	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	logger := zerolog.New(os.Stdout)
+	//logger := zerolog.New(os.Stdout)
 	wlogger := watermill.NewStdLogger(false, false)
 
 	commonClients, err := commonClients.NewClients(os.Getenv("GATEWAY_ADDR"), nil)
@@ -57,24 +57,56 @@ func main() {
 		return
 	}
 
-	appendToTrackerHandler, err := eventHandlers.NewAppendToTrackerHandler(logger, appendToTrackerSub, spreadsheetsClient)
+	router, err := message.NewRouter(message.RouterConfig{}, wlogger)
 	if err != nil {
-		logger.Err(err).Msg("error creating append-to-tracker-handler")
-		return
-	}
-	issueReceiptHandler, err := eventHandlers.NewIssueReceiptHandler(logger, issueReceiptSubscriber, receiptsClient)
-	if err != nil {
-		logger.Err(err).Msg("error creating issue-receipt-handler")
-		return
+		panic(err)
 	}
 
-	go appendToTrackerHandler.Run()
-	go issueReceiptHandler.Run()
+	router.AddNoPublisherHandler(
+		"append_to_tracker",
+		"append-to-tracker",
+		appendToTrackerSub,
+		func(msg *message.Message) error {
+			return spreadsheetsClient.AppendRow(
+				msg.Context(),
+				"tickets-to-print",
+				[]string{string(msg.Payload)})
+		},
+	)
+
+	router.AddNoPublisherHandler(
+		"issue_receipt",
+		"issue-receipt",
+		issueReceiptSubscriber,
+		func(msg *message.Message) error {
+			return receiptsClient.IssueReceipt(
+				msg.Context(),
+				string(msg.Payload))
+		},
+	)
+
+	go func() {
+		if err := router.Run(context.Background()); err != nil {
+			panic(err)
+		}
+	}()
+	//appendToTrackerHandler, err := eventHandlers.NewAppendToTrackerHandler(logger, appendToTrackerSub, spreadsheetsClient)
+	//if err != nil {
+	//	logger.Err(err).Msg("error creating append-to-tracker-handler")
+	//	return
+	//}
+	//issueReceiptHandler, err := eventHandlers.NewIssueReceiptHandler(logger, issueReceiptSubscriber, receiptsClient)
+	//if err != nil {
+	//	logger.Err(err).Msg("error creating issue-receipt-handler")
+	//	return
+	//}
+	//
+	//go appendToTrackerHandler.Run()
+	//go issueReceiptHandler.Run()
 
 	logrus.Info("Server starting...")
 	srv.Start()
-	// graceful shutdown
-
+	// todo graceful shutdown
 }
 
 func createSubscribers(
