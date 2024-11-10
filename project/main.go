@@ -1,73 +1,94 @@
 package main
 
 import (
-	"net/http"
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
+	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
 	"os"
+	"tickets/internal/application/services"
+	"tickets/internal/infrastructure/clients"
+	"tickets/internal/infrastructure/event_publisher"
+	eventHandlers "tickets/internal/interfaces/events"
+	"tickets/internal/interfaces/http"
 
-	"github.com/ThreeDotsLabs/go-event-driven/common/clients"
+	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
-	"github.com/ThreeDotsLabs/go-event-driven/common/log"
-	"github.com/labstack/echo/v4"
+
 	"github.com/sirupsen/logrus"
 )
 
-type TicketsConfirmationRequest struct {
-	Tickets []string `json:"tickets"`
-}
-
 func main() {
-	log.Init(logrus.InfoLevel)
+	logger := zerolog.New(os.Stdout)
+	wlogger := watermill.NewStdLogger(false, false)
 
-	clients, err := clients.NewClients(os.Getenv("GATEWAY_ADDR"), nil)
+	commonClients, err := commonClients.NewClients(os.Getenv("GATEWAY_ADDR"), nil)
 	if err != nil {
 		panic(err)
 	}
 
-	receiptsClient := NewReceiptsClient(clients)
-	spreadsheetsClient := NewSpreadsheetsClient(clients)
+	receiptsClient := clients.NewReceiptsClient(commonClients)
+	spreadsheetsClient := clients.NewSpreadsheetsClient(commonClients)
 
-	worker := NewWorker(receiptsClient, spreadsheetsClient, 10)
-	go worker.Run()
-
-	e := commonHTTP.NewEcho()
-
-	e.POST("/tickets-confirmation", func(c echo.Context) error {
-		var request TicketsConfirmationRequest
-		err := c.Bind(&request)
-		if err != nil {
-			return err
-		}
-
-		for _, ticket := range request.Tickets {
-			worker.Send(
-				Message{
-					Task:     TaskIssueReceipt,
-					TicketID: ticket,
-				},
-				Message{
-					Task:     TaskAppendToTracker,
-					TicketID: ticket,
-				},
-			)
-
-			//err = receiptsClient.IssueReceipt(c.Request().Context(), ticket)
-			//if err != nil {
-			//	return err
-			//}
-
-			//err = spreadsheetsClient.AppendRow(c.Request().Context(), "tickets-to-print", []string{ticket})
-			//if err != nil {
-			//	return err
-			//}
-		}
-
-		return c.NoContent(http.StatusOK)
+	rdb := redis.NewClient(&redis.Options{
+		Addr: os.Getenv("REDIS_ADDR"),
 	})
 
-	logrus.Info("Server starting...")
+	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
+		Client: rdb,
+	}, wlogger)
 
-	err = e.Start(":8080")
-	if err != nil && err != http.ErrServerClosed {
-		panic(err)
+	appendTrackerPublisher := event_publisher.NewAppendTrackerPublisher(publisher)
+	receiptIssuePublisher := event_publisher.NewReceiptIssuePublisher(publisher)
+
+	ticketConfirmationService := services.NewTicketConfirmationService(receiptIssuePublisher, appendTrackerPublisher)
+
+	e := commonHTTP.NewEcho()
+	srv := http.NewServer(e, ticketConfirmationService)
+
+	appendToTrackerSub, err := createSubscribers(rdb, wlogger, "append-to-tracker-consumer-group")
+	if err != nil {
+		wlogger.Error("error creating subscriber", err, nil)
+		return
 	}
+	issueReceiptSubscriber, err := createSubscribers(rdb, wlogger, "issue-receipt-consumer-group")
+	if err != nil {
+		wlogger.Error("error creating subscriber", err, nil)
+		return
+	}
+
+	appendToTrackerHandler, err := eventHandlers.NewAppendToTrackerHandler(logger, appendToTrackerSub, spreadsheetsClient)
+	if err != nil {
+		logger.Err(err).Msg("error creating append-to-tracker-handler")
+		return
+	}
+	issueReceiptHandler, err := eventHandlers.NewIssueReceiptHandler(logger, issueReceiptSubscriber, receiptsClient)
+	if err != nil {
+		logger.Err(err).Msg("error creating issue-receipt-handler")
+		return
+	}
+
+	go appendToTrackerHandler.Run()
+	go issueReceiptHandler.Run()
+
+	logrus.Info("Server starting...")
+	srv.Start()
+	// graceful shutdown
+
+}
+
+func createSubscribers(
+	rdb *redis.Client,
+	logger watermill.LoggerAdapter,
+	consumerGroup string,
+) (*redisstream.Subscriber, error) {
+	sub, err := redisstream.NewSubscriber(redisstream.SubscriberConfig{
+		Client:        rdb,
+		ConsumerGroup: consumerGroup,
+	}, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return sub, nil
 }

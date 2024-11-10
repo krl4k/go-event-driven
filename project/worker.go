@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"tickets/internal/infrastructure/clients"
 )
 
 type Task int
@@ -18,13 +19,13 @@ type Message struct {
 
 type Worker struct {
 	queue              chan Message
-	receiptsClient     ReceiptsClient
-	spreadSheetsClient SpreadsheetsClient
+	receiptsClient     clients.ReceiptsClient
+	spreadSheetsClient clients.SpreadsheetsClient
 }
 
 func NewWorker(
-	receiptsClient ReceiptsClient,
-	spreadsheetsClient SpreadsheetsClient,
+	receiptsClient clients.ReceiptsClient,
+	spreadsheetsClient clients.SpreadsheetsClient,
 	n int32,
 ) *Worker {
 	return &Worker{
