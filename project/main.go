@@ -90,19 +90,6 @@ func main() {
 			panic(err)
 		}
 	}()
-	//appendToTrackerHandler, err := eventHandlers.NewAppendToTrackerHandler(logger, appendToTrackerSub, spreadsheetsClient)
-	//if err != nil {
-	//	logger.Err(err).Msg("error creating append-to-tracker-handler")
-	//	return
-	//}
-	//issueReceiptHandler, err := eventHandlers.NewIssueReceiptHandler(logger, issueReceiptSubscriber, receiptsClient)
-	//if err != nil {
-	//	logger.Err(err).Msg("error creating issue-receipt-handler")
-	//	return
-	//}
-	//
-	//go appendToTrackerHandler.Run()
-	//go issueReceiptHandler.Run()
 
 	logrus.Info("Server starting...")
 	srv.Start()
