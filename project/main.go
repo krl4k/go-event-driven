@@ -6,7 +6,10 @@ import (
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 	"os"
+	"os/signal"
 	"tickets/internal/application/services"
 	"tickets/internal/infrastructure/clients"
 	"tickets/internal/infrastructure/event_publisher"
@@ -14,12 +17,10 @@ import (
 
 	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
-
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	//logger := zerolog.New(os.Stdout)
+	logger := zerolog.New(os.Stdout)
 	wlogger := watermill.NewStdLogger(false, false)
 
 	commonClients, err := commonClients.NewClients(os.Getenv("GATEWAY_ADDR"), nil)
@@ -85,15 +86,42 @@ func main() {
 		},
 	)
 
-	go func() {
-		if err := router.Run(context.Background()); err != nil {
-			panic(err)
-		}
-	}()
+	ctx := context.Background()
+	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	defer cancel()
 
-	logrus.Info("Server starting...")
-	srv.Start()
-	// todo graceful shutdown
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		logger.Info().Msg("starting router")
+
+		return router.Run(ctx)
+	})
+
+	g.Go(func() error {
+		<-router.Running()
+		logger.Info().Msg("router is running")
+
+		logger.Info().Msg("starting server")
+		return srv.Start()
+	})
+
+	g.Go(func() error {
+		// Shut down
+		<-ctx.Done()
+
+		err = srv.Stop(ctx)
+		if err != nil {
+			logger.Err(err).Msg("error stopping server")
+		}
+
+		return err
+	})
+
+	// Will block until all goroutines finish
+	err = g.Wait()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func createSubscribers(
