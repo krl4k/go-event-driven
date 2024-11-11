@@ -44,8 +44,13 @@ func main() {
 
 	ticketConfirmationService := services.NewTicketConfirmationService(receiptIssuePublisher, appendTrackerPublisher)
 
+	router, err := message.NewRouter(message.RouterConfig{}, wlogger)
+	if err != nil {
+		panic(err)
+	}
+
 	e := commonHTTP.NewEcho()
-	srv := http.NewServer(e, ticketConfirmationService)
+	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
 
 	appendToTrackerSub, err := createSubscribers(rdb, wlogger, "append-to-tracker-consumer-group")
 	if err != nil {
@@ -56,11 +61,6 @@ func main() {
 	if err != nil {
 		wlogger.Error("error creating subscriber", err, nil)
 		return
-	}
-
-	router, err := message.NewRouter(message.RouterConfig{}, wlogger)
-	if err != nil {
-		panic(err)
 	}
 
 	router.AddNoPublisherHandler(

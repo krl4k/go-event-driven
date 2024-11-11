@@ -17,13 +17,19 @@ type Server struct {
 func NewServer(
 	e *echo.Echo,
 	ticketConfirmationService *services.TicketConfirmationService,
+	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{
 		e:                         e,
 		ticketConfirmationService: ticketConfirmationService,
 	}
 	e.POST("/tickets-confirmation", srv.TicketsConfirmationHandler)
-
+	e.GET("/health", func(c echo.Context) error {
+		if !routerIsRunning() {
+			return c.String(http.StatusServiceUnavailable, "router is not running")
+		}
+		return c.String(http.StatusOK, "ok")
+	})
 	return srv
 }
 
