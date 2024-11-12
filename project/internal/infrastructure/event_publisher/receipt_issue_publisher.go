@@ -17,10 +17,18 @@ func NewTicketBookingConfirmedPublisher(publisher message.Publisher) *TicketBook
 	}
 }
 
-func (p *TicketBookingConfirmedPublisher) Publish(event domain.TicketBookingConfirmedEvent) error {
+func (p *TicketBookingConfirmedPublisher) PublishConfirmed(event domain.TicketBookingConfirmedEvent) error {
 	bytes, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 	return p.publisher.Publish("TicketBookingConfirmed", message.NewMessage(uuid.NewString(), bytes))
+}
+
+func (p *TicketBookingConfirmedPublisher) PublishCanceled(event domain.TicketBookingCanceledEvent) error {
+	bytes, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	return p.publisher.Publish("TicketBookingCanceled", message.NewMessage(uuid.NewString(), bytes))
 }

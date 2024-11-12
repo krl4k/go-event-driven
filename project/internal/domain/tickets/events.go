@@ -12,8 +12,16 @@ type TicketBookingConfirmedEvent struct {
 	Price         Money  `json:"price"`
 }
 
+type TicketBookingCanceledEvent struct {
+	Header        Header `json:"header"`
+	TicketId      string `json:"ticket_id"`
+	CustomerEmail string `json:"customer_email"`
+	Price         Money  `json:"price"`
+}
+
 // Interfaces for domain events
 
-type TicketBookingConfirmedPublisher interface {
-	Publish(event TicketBookingConfirmedEvent) error
+type TicketBookingPublisher interface {
+	PublishConfirmed(event TicketBookingConfirmedEvent) error
+	PublishCanceled(event TicketBookingCanceledEvent) error
 }

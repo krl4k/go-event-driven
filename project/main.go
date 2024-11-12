@@ -88,6 +88,29 @@ func main() {
 	)
 
 	router.AddNoPublisherHandler(
+		"refund_ticket",
+		"TicketBookingCanceled",
+		appendToTrackerSub,
+		func(msg *message.Message) error {
+			var payload domain.TicketBookingConfirmedEvent
+			err := json.Unmarshal(msg.Payload, &payload)
+			if err != nil {
+				return err
+			}
+
+			return spreadsheetsClient.AppendRow(
+				msg.Context(),
+				"tickets-to-refund",
+				[]string{
+					payload.TicketId,
+					payload.CustomerEmail,
+					payload.Price.Amount,
+					payload.Price.Currency})
+
+		},
+	)
+
+	router.AddNoPublisherHandler(
 		"issue_receipt",
 		"TicketBookingConfirmed",
 		issueReceiptSubscriber,
