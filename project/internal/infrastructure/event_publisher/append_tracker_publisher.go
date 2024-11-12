@@ -1,6 +1,7 @@
 package event_publisher
 
 import (
+	"encoding/json"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/google/uuid"
 	domain "tickets/internal/domain/tickets"
@@ -16,6 +17,11 @@ func NewAppendTrackerPublisher(publisher message.Publisher) *ReceiptIssuePublish
 	}
 }
 
-func (p *ReceiptIssuePublisher) PublishAppendToTracker(ticket domain.Ticket) error {
-	return p.publisher.Publish("append-to-tracker", message.NewMessage(uuid.NewString(), []byte(ticket)))
+func (p *ReceiptIssuePublisher) PublishAppendToTracker(event domain.AppendToTrackerEvent) error {
+	bytes, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+
+	return p.publisher.Publish("append-to-tracker", message.NewMessage(uuid.NewString(), bytes))
 }

@@ -1,6 +1,7 @@
 package event_publisher
 
 import (
+	"encoding/json"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/google/uuid"
 	domain "tickets/internal/domain/tickets"
@@ -16,6 +17,10 @@ func NewReceiptIssuePublisher(publisher message.Publisher) *ReceiptIssuePublishe
 	}
 }
 
-func (p *ReceiptIssuePublisher) PublishIssueReceipt(ticket domain.Ticket) error {
-	return p.publisher.Publish("issue-receipt", message.NewMessage(uuid.NewString(), []byte(ticket)))
+func (p *ReceiptIssuePublisher) PublishIssueReceipt(event domain.IssueReceiptEvent) error {
+	bytes, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	return p.publisher.Publish("issue-receipt", message.NewMessage(uuid.NewString(), bytes))
 }

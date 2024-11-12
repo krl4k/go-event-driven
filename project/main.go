@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"tickets/internal/application/services"
+	domain "tickets/internal/domain/tickets"
 	"tickets/internal/infrastructure/clients"
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/http"
@@ -68,10 +70,21 @@ func main() {
 		"append-to-tracker",
 		appendToTrackerSub,
 		func(msg *message.Message) error {
+			var payload domain.AppendToTrackerEvent
+			err := json.Unmarshal(msg.Payload, &payload)
+			if err != nil {
+				return err
+			}
+
 			return spreadsheetsClient.AppendRow(
 				msg.Context(),
 				"tickets-to-print",
-				[]string{string(msg.Payload)})
+				[]string{
+					payload.TicketId,
+					payload.CustomerEmail,
+					payload.Price.Amount,
+					payload.Price.Currency})
+
 		},
 	)
 
@@ -80,9 +93,18 @@ func main() {
 		"issue-receipt",
 		issueReceiptSubscriber,
 		func(msg *message.Message) error {
+			var payload domain.IssueReceiptEvent
+			err := json.Unmarshal(msg.Payload, &payload)
+			if err != nil {
+				return err
+			}
+
 			return receiptsClient.IssueReceipt(
 				msg.Context(),
-				string(msg.Payload))
+				clients.IssueReceiptRequest{
+					TicketID: payload.TicketId,
+					Price:    payload.Price,
+				})
 		},
 	)
 

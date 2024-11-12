@@ -6,6 +6,7 @@ import (
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients/receipts"
 	"net/http"
+	domain "tickets/internal/domain/tickets"
 )
 
 var ReceiptServiceRetryableError = fmt.Errorf("receipt service is unavailable")
@@ -20,9 +21,18 @@ func NewReceiptsClient(clients *clients.Clients) ReceiptsClient {
 	}
 }
 
-func (c ReceiptsClient) IssueReceipt(ctx context.Context, ticketID string) error {
+type IssueReceiptRequest struct {
+	TicketID string
+	Price    domain.Money
+}
+
+func (c ReceiptsClient) IssueReceipt(ctx context.Context, request IssueReceiptRequest) error {
 	body := receipts.PutReceiptsJSONRequestBody{
-		TicketId: ticketID,
+		TicketId: request.TicketID,
+		Price: receipts.Money{
+			MoneyAmount:   request.Price.Amount,
+			MoneyCurrency: request.Price.Currency,
+		},
 	}
 
 	receiptsResp, err := c.clients.Receipts.PutReceiptsWithResponse(ctx, body)

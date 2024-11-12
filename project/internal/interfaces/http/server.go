@@ -23,7 +23,7 @@ func NewServer(
 		e:                         e,
 		ticketConfirmationService: ticketConfirmationService,
 	}
-	e.POST("/tickets-confirmation", srv.TicketsConfirmationHandler)
+	e.POST("/tickets-status", srv.TicketsStatusHandler)
 	e.GET("/health", func(c echo.Context) error {
 		if !routerIsRunning() {
 			return c.String(http.StatusServiceUnavailable, "router is not running")

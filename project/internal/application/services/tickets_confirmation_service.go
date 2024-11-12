@@ -17,11 +17,17 @@ func NewTicketConfirmationService(
 	}
 }
 
-func (s *TicketConfirmationService) ConfirmTickets(tickets []string) {
-	for _, ticketID := range tickets {
-		ticket := domain.Ticket(ticketID)
+func (s *TicketConfirmationService) ConfirmTickets(tickets []domain.Ticket) {
+	for _, ticket := range tickets {
 
-		s.receiptIssuePublisher.PublishIssueReceipt(ticket)
-		s.appendToTrackerPublisher.PublishAppendToTracker(ticket)
+		s.receiptIssuePublisher.PublishIssueReceipt(domain.IssueReceiptEvent{
+			TicketId: ticket.TicketId,
+			Price:    ticket.Price,
+		})
+		s.appendToTrackerPublisher.PublishAppendToTracker(domain.AppendToTrackerEvent{
+			TicketId:      ticket.TicketId,
+			CustomerEmail: ticket.CustomerEmail,
+			Price:         ticket.Price,
+		})
 	}
 }
