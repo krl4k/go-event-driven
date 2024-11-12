@@ -41,10 +41,9 @@ func main() {
 		Client: rdb,
 	}, wlogger)
 
-	appendTrackerPublisher := event_publisher.NewAppendTrackerPublisher(publisher)
-	receiptIssuePublisher := event_publisher.NewReceiptIssuePublisher(publisher)
+	tpublisher := event_publisher.NewTicketBookingConfirmedPublisher(publisher)
 
-	ticketConfirmationService := services.NewTicketConfirmationService(receiptIssuePublisher, appendTrackerPublisher)
+	ticketConfirmationService := services.NewTicketConfirmationService(tpublisher)
 
 	router, err := message.NewRouter(message.RouterConfig{}, wlogger)
 	if err != nil {
@@ -67,10 +66,10 @@ func main() {
 
 	router.AddNoPublisherHandler(
 		"append_to_tracker",
-		"append-to-tracker",
+		"TicketBookingConfirmed",
 		appendToTrackerSub,
 		func(msg *message.Message) error {
-			var payload domain.AppendToTrackerEvent
+			var payload domain.TicketBookingConfirmedEvent
 			err := json.Unmarshal(msg.Payload, &payload)
 			if err != nil {
 				return err
@@ -90,10 +89,10 @@ func main() {
 
 	router.AddNoPublisherHandler(
 		"issue_receipt",
-		"issue-receipt",
+		"TicketBookingConfirmed",
 		issueReceiptSubscriber,
 		func(msg *message.Message) error {
-			var payload domain.IssueReceiptEvent
+			var payload domain.TicketBookingConfirmedEvent
 			err := json.Unmarshal(msg.Payload, &payload)
 			if err != nil {
 				return err

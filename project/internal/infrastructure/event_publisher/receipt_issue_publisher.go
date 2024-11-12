@@ -7,20 +7,20 @@ import (
 	domain "tickets/internal/domain/tickets"
 )
 
-type ReceiptIssuePublisher struct {
+type TicketBookingConfirmedPublisher struct {
 	publisher message.Publisher
 }
 
-func NewReceiptIssuePublisher(publisher message.Publisher) *ReceiptIssuePublisher {
-	return &ReceiptIssuePublisher{
+func NewTicketBookingConfirmedPublisher(publisher message.Publisher) *TicketBookingConfirmedPublisher {
+	return &TicketBookingConfirmedPublisher{
 		publisher: publisher,
 	}
 }
 
-func (p *ReceiptIssuePublisher) PublishIssueReceipt(event domain.IssueReceiptEvent) error {
+func (p *TicketBookingConfirmedPublisher) Publish(event domain.TicketBookingConfirmedEvent) error {
 	bytes, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
-	return p.publisher.Publish("issue-receipt", message.NewMessage(uuid.NewString(), bytes))
+	return p.publisher.Publish("TicketBookingConfirmed", message.NewMessage(uuid.NewString(), bytes))
 }

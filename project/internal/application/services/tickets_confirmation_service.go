@@ -1,33 +1,36 @@
 package services
 
-import domain "tickets/internal/domain/tickets"
+import (
+	"github.com/google/uuid"
+	domain "tickets/internal/domain/tickets"
+	"time"
+)
 
 type TicketConfirmationService struct {
-	receiptIssuePublisher    domain.ReceiptIssuePublisher
-	appendToTrackerPublisher domain.AppendToTrackerPublisher
+	publisher domain.TicketBookingConfirmedPublisher
 }
 
 func NewTicketConfirmationService(
-	receiptIssuePublisher domain.ReceiptIssuePublisher,
-	appendToTrackerPublisher domain.AppendToTrackerPublisher,
+	publisher domain.TicketBookingConfirmedPublisher,
 ) *TicketConfirmationService {
 	return &TicketConfirmationService{
-		receiptIssuePublisher:    receiptIssuePublisher,
-		appendToTrackerPublisher: appendToTrackerPublisher,
+		publisher: publisher,
 	}
 }
 
 func (s *TicketConfirmationService) ConfirmTickets(tickets []domain.Ticket) {
 	for _, ticket := range tickets {
-
-		s.receiptIssuePublisher.PublishIssueReceipt(domain.IssueReceiptEvent{
-			TicketId: ticket.TicketId,
-			Price:    ticket.Price,
-		})
-		s.appendToTrackerPublisher.PublishAppendToTracker(domain.AppendToTrackerEvent{
+		s.publisher.Publish(domain.TicketBookingConfirmedEvent{
+			Header: domain.Header{
+				Id:          uuid.NewString(),
+				PublishedAt: time.Now().Format(time.RFC3339),
+			},
 			TicketId:      ticket.TicketId,
 			CustomerEmail: ticket.CustomerEmail,
-			Price:         ticket.Price,
+			Price: domain.Money{
+				Amount:   ticket.Price.Amount,
+				Currency: ticket.Price.Currency,
+			},
 		})
 	}
 }

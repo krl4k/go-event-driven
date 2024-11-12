@@ -1,11 +1,12 @@
 package domain
 
-type IssueReceiptEvent struct {
-	TicketId string `json:"ticket_id"`
-	Price    Money  `json:"price"`
+type Header struct {
+	Id          string `json:"id"`
+	PublishedAt string `json:"published_at"`
 }
 
-type AppendToTrackerEvent struct {
+type TicketBookingConfirmedEvent struct {
+	Header        Header `json:"header"`
 	TicketId      string `json:"ticket_id"`
 	CustomerEmail string `json:"customer_email"`
 	Price         Money  `json:"price"`
@@ -13,10 +14,6 @@ type AppendToTrackerEvent struct {
 
 // Interfaces for domain events
 
-type ReceiptIssuePublisher interface {
-	PublishIssueReceipt(event IssueReceiptEvent) error
-}
-
-type AppendToTrackerPublisher interface {
-	PublishAppendToTracker(event AppendToTrackerEvent) error
+type TicketBookingConfirmedPublisher interface {
+	Publish(event TicketBookingConfirmedEvent) error
 }
