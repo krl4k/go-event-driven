@@ -8,6 +8,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"os"
 	"os/signal"
@@ -50,6 +51,17 @@ func main() {
 		panic(err)
 	}
 
+	router.AddMiddleware(func(next message.HandlerFunc) message.HandlerFunc {
+		return func(message *message.Message) ([]*message.Message, error) {
+			//logger.Info().
+			//	Str("message_uuid", message.UUID).
+			//	Msg("Handling a message")
+
+			logrus.WithField("message_uuid", message.UUID).
+				Info("Handling a message")
+			return next(message)
+		}
+	})
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
 
