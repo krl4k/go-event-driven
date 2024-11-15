@@ -7,6 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -20,6 +21,7 @@ import (
 	"tickets/internal/infrastructure/clients"
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/http"
+	"time"
 
 	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
@@ -105,6 +107,14 @@ func main() {
 			return messages, err
 		}
 	})
+
+	router.AddMiddleware(middleware.Retry{
+		MaxRetries:      10,
+		InitialInterval: time.Millisecond * 100,
+		MaxInterval:     time.Second,
+		Multiplier:      2,
+		Logger:          wlogger,
+	}.Middleware)
 
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
