@@ -40,9 +40,9 @@ func (c ReceiptsClient) IssueReceipt(ctx context.Context, request IssueReceiptRe
 		return err
 	}
 	if receiptsResp.StatusCode() != http.StatusOK {
-		if receiptsResp.StatusCode() == http.StatusInternalServerError {
-			return ReceiptServiceRetryableError
-		}
+		//if receiptsResp.StatusCode() == http.StatusInternalServerError {
+		//	return ReceiptServiceRetryableError
+		//}
 		return fmt.Errorf("unexpected status code: %v", receiptsResp.StatusCode())
 	}
 

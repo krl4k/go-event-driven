@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"github.com/google/uuid"
 	domain "tickets/internal/domain/tickets"
 	"time"
@@ -18,10 +19,10 @@ func NewTicketConfirmationService(
 	}
 }
 
-func (s *TicketConfirmationService) ConfirmTickets(tickets []domain.Ticket) {
+func (s *TicketConfirmationService) ConfirmTickets(ctx context.Context, tickets []domain.Ticket) {
 	for _, ticket := range tickets {
 		if ticket.Status == "confirmed" {
-			s.publisher.PublishConfirmed(domain.TicketBookingConfirmedEvent{
+			s.publisher.PublishConfirmed(ctx, domain.TicketBookingConfirmedEvent{
 				Header: domain.Header{
 					Id:          uuid.NewString(),
 					PublishedAt: time.Now().Format(time.RFC3339),
@@ -34,7 +35,7 @@ func (s *TicketConfirmationService) ConfirmTickets(tickets []domain.Ticket) {
 				},
 			})
 		} else {
-			s.publisher.PublishCanceled(domain.TicketBookingCanceledEvent{
+			s.publisher.PublishCanceled(ctx, domain.TicketBookingCanceledEvent{
 				Header: domain.Header{
 					Id:          uuid.NewString(),
 					PublishedAt: time.Now().Format(time.RFC3339),

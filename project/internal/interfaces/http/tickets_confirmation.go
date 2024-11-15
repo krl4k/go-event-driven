@@ -39,7 +39,8 @@ func (s *Server) TicketsStatusHandler(ctx echo.Context) error {
 			},
 		})
 	}
-	s.ticketConfirmationService.ConfirmTickets(tickets)
+
+	s.ticketConfirmationService.ConfirmTickets(ctx.Request().Context(), tickets)
 
 	return ctx.NoContent(http.StatusOK)
 }

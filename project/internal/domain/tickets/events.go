@@ -1,5 +1,7 @@
 package domain
 
+import "context"
+
 type Header struct {
 	Id          string `json:"id"`
 	PublishedAt string `json:"published_at"`
@@ -22,6 +24,6 @@ type TicketBookingCanceledEvent struct {
 // Interfaces for domain events
 
 type TicketBookingPublisher interface {
-	PublishConfirmed(event TicketBookingConfirmedEvent) error
-	PublishCanceled(event TicketBookingCanceledEvent) error
+	PublishConfirmed(ctx context.Context, event TicketBookingConfirmedEvent) error
+	PublishCanceled(ctx context.Context, event TicketBookingCanceledEvent) error
 }

@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	nethttp "net/http"
 	"os"
 	"os/signal"
 	"tickets/internal/application/services"
@@ -26,7 +29,12 @@ func main() {
 	logger := zerolog.New(os.Stdout)
 	wlogger := watermill.NewStdLogger(false, false)
 
-	commonClients, err := commonClients.NewClients(os.Getenv("GATEWAY_ADDR"), nil)
+	commonClients, err := commonClients.NewClients(os.Getenv("GATEWAY_ADDR"),
+		func(ctx context.Context, req *nethttp.Request) error {
+			req.Header.Set("Correlation-ID", log.CorrelationIDFromContext(ctx))
+			return nil
+		},
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -51,17 +59,53 @@ func main() {
 		panic(err)
 	}
 
+	// Middleware for setting correlation id into context and logger
 	router.AddMiddleware(func(next message.HandlerFunc) message.HandlerFunc {
 		return func(message *message.Message) ([]*message.Message, error) {
-			//logger.Info().
-			//	Str("message_uuid", message.UUID).
-			//	Msg("Handling a message")
+			correlationID := message.Metadata.Get("correlation_id")
 
-			logrus.WithField("message_uuid", message.UUID).
+			if correlationID == "" {
+				correlationID = uuid.New().String()
+			}
+
+			ctx := log.ContextWithCorrelationID(message.Context(), correlationID)
+
+			ctx = log.ToContext(ctx,
+				logrus.WithFields(logrus.Fields{
+					"correlation_id": correlationID,
+					"message_uuid":   message.UUID,
+				},
+				))
+
+			message.SetContext(ctx)
+
+			return next(message)
+		}
+	})
+
+	// Middleware for logging
+	router.AddMiddleware(func(next message.HandlerFunc) message.HandlerFunc {
+		return func(message *message.Message) ([]*message.Message, error) {
+			log.FromContext(message.Context()).
 				Info("Handling a message")
 			return next(message)
 		}
 	})
+
+	// Middleware for error handling
+	router.AddMiddleware(func(next message.HandlerFunc) message.HandlerFunc {
+		return func(message *message.Message) ([]*message.Message, error) {
+			messages, err := next(message)
+			if err != nil {
+				log.FromContext(message.Context()).
+					WithField("error", err).
+					Error("Message handling error")
+			}
+
+			return messages, err
+		}
+	})
+
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
 
@@ -117,7 +161,8 @@ func main() {
 					payload.TicketId,
 					payload.CustomerEmail,
 					payload.Price.Amount,
-					payload.Price.Currency})
+					payload.Price.Currency,
+				})
 
 		},
 	)
