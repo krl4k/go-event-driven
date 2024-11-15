@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
+	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	nethttp "net/http"
 	"os"
@@ -20,11 +20,9 @@ import (
 	domain "tickets/internal/domain/tickets"
 	"tickets/internal/infrastructure/clients"
 	"tickets/internal/infrastructure/event_publisher"
+	"tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
 	"time"
-
-	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
-	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
 )
 
 func main() {
@@ -61,61 +59,6 @@ func main() {
 		panic(err)
 	}
 
-	// Middleware for setting correlation id into context and logger
-	router.AddMiddleware(func(next message.HandlerFunc) message.HandlerFunc {
-		return func(message *message.Message) ([]*message.Message, error) {
-			correlationID := message.Metadata.Get("correlation_id")
-
-			if correlationID == "" {
-				correlationID = uuid.New().String()
-			}
-
-			ctx := log.ContextWithCorrelationID(message.Context(), correlationID)
-
-			ctx = log.ToContext(ctx,
-				logrus.WithFields(logrus.Fields{
-					"correlation_id": correlationID,
-					"message_uuid":   message.UUID,
-				},
-				))
-
-			message.SetContext(ctx)
-
-			return next(message)
-		}
-	})
-
-	// Middleware for logging
-	router.AddMiddleware(func(next message.HandlerFunc) message.HandlerFunc {
-		return func(message *message.Message) ([]*message.Message, error) {
-			log.FromContext(message.Context()).
-				Info("Handling a message")
-			return next(message)
-		}
-	})
-
-	// Middleware for error handling
-	router.AddMiddleware(func(next message.HandlerFunc) message.HandlerFunc {
-		return func(message *message.Message) ([]*message.Message, error) {
-			messages, err := next(message)
-			if err != nil {
-				log.FromContext(message.Context()).
-					WithField("error", err).
-					Error("Message handling error")
-			}
-
-			return messages, err
-		}
-	})
-
-	router.AddMiddleware(middleware.Retry{
-		MaxRetries:      10,
-		InitialInterval: time.Millisecond * 100,
-		MaxInterval:     time.Second,
-		Multiplier:      2,
-		Logger:          wlogger,
-	}.Middleware)
-
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
 
@@ -130,17 +73,43 @@ func main() {
 		return
 	}
 
+	router.AddMiddleware(middleware.Recoverer)
+	router.AddMiddleware(events.CorrelationIDMiddleware)
+	router.AddMiddleware(events.LoggingMiddleware)
+	router.AddMiddleware(events.MetadataTypeChecker)
+
+	router.AddMiddleware(middleware.Retry{
+		MaxRetries:      10,
+		InitialInterval: time.Millisecond * 100,
+		MaxInterval:     time.Second,
+		Multiplier:      2,
+		Logger:          wlogger,
+	}.Middleware)
+
+	// skip marshalling errors before retrying
+	router.AddMiddleware(events.SkipMarshallingErrorsMiddleware)
+
 	router.AddNoPublisherHandler(
 		"append_to_tracker",
 		"TicketBookingConfirmed",
 		appendToTrackerSub,
 		func(msg *message.Message) error {
+			if eventType := msg.Metadata.Get("type"); eventType != "TicketBookingConfirmed" {
+				log.FromContext(msg.Context()).
+					WithField("type", eventType).
+					Warn("Message type not correct")
+				return nil
+			}
+
 			var payload domain.TicketBookingConfirmedEvent
 			err := json.Unmarshal(msg.Payload, &payload)
 			if err != nil {
-				return err
+				return events.ErrJsonUnmarshal
 			}
 
+			if payload.Price.Currency == "" {
+				payload.Price.Currency = "USD"
+			}
 			return spreadsheetsClient.AppendRow(
 				msg.Context(),
 				"tickets-to-print",
@@ -158,12 +127,22 @@ func main() {
 		"TicketBookingCanceled",
 		appendToTrackerSub,
 		func(msg *message.Message) error {
+			if eventType := msg.Metadata.Get("type"); eventType != "TicketBookingCanceled" {
+				log.FromContext(msg.Context()).
+					WithField("type", eventType).
+					Warn("Message type not correct")
+				return nil
+			}
+
 			var payload domain.TicketBookingConfirmedEvent
 			err := json.Unmarshal(msg.Payload, &payload)
 			if err != nil {
-				return err
+				return events.ErrJsonUnmarshal
 			}
 
+			if payload.Price.Currency == "" {
+				payload.Price.Currency = "USD"
+			}
 			return spreadsheetsClient.AppendRow(
 				msg.Context(),
 				"tickets-to-refund",
@@ -185,9 +164,12 @@ func main() {
 			var payload domain.TicketBookingConfirmedEvent
 			err := json.Unmarshal(msg.Payload, &payload)
 			if err != nil {
-				return err
+				return events.ErrJsonUnmarshal
 			}
 
+			if payload.Price.Currency == "" {
+				payload.Price.Currency = "USD"
+			}
 			return receiptsClient.IssueReceipt(
 				msg.Context(),
 				clients.IssueReceiptRequest{
