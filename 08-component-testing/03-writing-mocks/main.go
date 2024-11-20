@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"github.com/google/uuid"
+	"sync"
 	"time"
 )
 
@@ -25,5 +27,18 @@ type ReceiptsService interface {
 }
 
 type ReceiptsServiceMock struct {
-	// todo: implement me
+	lock           sync.Mutex
+	IssuedReceipts []IssueReceiptRequest
+}
+
+func (m *ReceiptsServiceMock) IssueReceipt(ctx context.Context, request IssueReceiptRequest) (IssueReceiptResponse, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	m.IssuedReceipts = append(m.IssuedReceipts, request)
+
+	return IssueReceiptResponse{
+		ReceiptNumber: uuid.NewString(),
+		IssuedAt:      time.Now(),
+	}, nil
 }
