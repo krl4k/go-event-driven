@@ -1,0 +1,34 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="component tests" type="GoTestRunConfiguration" factoryName="Go Test">
+    <module name="go-event-driven" />
+    <working_directory value="$PROJECT_DIR$/project/tests" />
+    <go_parameters value="-tags=component" />
+    <parameters value=" -testify.m ^TestTicketStatusConfirmation$" />
+    <envs>
+      <env name="TEST_GATEWAY_URL" value="http://localhost:8888" />
+      <env name="TEST_REDIS_URL" value="localhost:6379" />
+      <env name="TEST_SERVICE_URL" value="http://localhost:8080" />
+      <env name="USE_LOCAL_GATEWAY" value="true" />
+      <env name="USE_LOCAL_REDIS" value="true" />
+      <env name="USE_LOCAL_SERVICE" value="true" />
+    </envs>
+    <EXTENSION ID="net.ashald.envfile">
+      <option name="IS_ENABLED" value="false" />
+      <option name="IS_SUBST" value="false" />
+      <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+      <option name="IS_IGNORE_MISSING_FILES" value="false" />
+      <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+      <ENTRIES>
+        <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
+      </ENTRIES>
+    </EXTENSION>
+    <root_directory value="$PROJECT_DIR$/project" />
+    <kind value="PACKAGE" />
+    <package value="tickets/tests" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$" />
+    <framework value="gotest" />
+    <pattern value="^\TestComponentTestSuite\E$/^\QTestTicketStatusConfirmation\E$" />
+    <method v="2" />
+  </configuration>
+</component>

@@ -48,6 +48,7 @@ func LoggingMiddleware(next message.HandlerFunc) message.HandlerFunc {
 	return func(message *message.Message) ([]*message.Message, error) {
 		log.FromContext(message.Context()).
 			WithField("payload", string(message.Payload)).
+			WithField("metadata", message.Metadata).
 			Info("Handling a message")
 
 		messages, err := next(message)

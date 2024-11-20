@@ -28,6 +28,8 @@ func (p *TicketBookingConfirmedPublisher) PublishConfirmed(ctx context.Context, 
 	msg := message.NewMessage(uuid.NewString(), bytes)
 
 	msg.Metadata.Set("correlation_id", log.CorrelationIDFromContext(ctx))
+	log.FromContext(ctx).WithField("publish with correlation_id", msg.Metadata.Get("correlation_id"))
+
 	msg.Metadata.Set("type", "TicketBookingConfirmed")
 
 	return p.publisher.Publish("TicketBookingConfirmed", msg)
@@ -41,6 +43,8 @@ func (p *TicketBookingConfirmedPublisher) PublishCanceled(ctx context.Context, e
 
 	msg := message.NewMessage(uuid.NewString(), bytes)
 	msg.Metadata.Set("correlation_id", log.CorrelationIDFromContext(ctx))
+	log.FromContext(ctx).WithField("publish with correlation_id", msg.Metadata.Get("correlation_id"))
+
 	msg.Metadata.Set("type", "TicketBookingCanceled")
 
 	return p.publisher.Publish("TicketBookingCanceled", msg)

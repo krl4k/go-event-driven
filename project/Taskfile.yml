@@ -1,0 +1,29 @@
+version: '3'
+
+tasks:
+  app:
+    cmds:
+      - go run main.go
+    env:
+      REDIS_ADDR: localhost:6379
+      GATEWAY_ADDR: http://localhost:8888
+
+  local-test-deps:
+    cmds:
+      - docker-compose up -d
+
+  test-component-local:
+#    deps:
+#      - local-tests-deps
+#      - app
+    cmds:
+      - go test -v ./... -tags=component
+    env:
+      USE_LOCAL_REDIS: true
+      TEST_REDIS_URL: localhost:6379
+      USE_LOCAL_SERVICE: true
+      TEST_SERVICE_URL: http://localhost:8080
+      USE_LOCAL_GATEWAY: true
+      TEST_GATEWAY_URL: http://localhost:8888
+
+  test-component:

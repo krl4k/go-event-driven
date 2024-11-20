@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	domain "tickets/internal/domain/tickets"
@@ -39,6 +40,10 @@ func (s *Server) TicketsStatusHandler(ctx echo.Context) error {
 			},
 		})
 	}
+
+	log.FromContext(ctx.Request().Context()).
+		WithField("correlation_id", log.CorrelationIDFromContext(ctx.Request().Context())).
+		Info("Confirming tickets http handler")
 
 	s.ticketConfirmationService.ConfirmTickets(ctx.Request().Context(), tickets)
 
