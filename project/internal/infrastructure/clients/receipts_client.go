@@ -9,8 +9,6 @@ import (
 	domain "tickets/internal/domain/tickets"
 )
 
-var ReceiptServiceRetryableError = fmt.Errorf("receipt service is unavailable")
-
 type ReceiptsClient struct {
 	clients *clients.Clients
 }
@@ -21,12 +19,7 @@ func NewReceiptsClient(clients *clients.Clients) ReceiptsClient {
 	}
 }
 
-type IssueReceiptRequest struct {
-	TicketID string
-	Price    domain.Money
-}
-
-func (c ReceiptsClient) IssueReceipt(ctx context.Context, request IssueReceiptRequest) error {
+func (c ReceiptsClient) IssueReceipt(ctx context.Context, request domain.IssueReceiptRequest) (*domain.IssueReceiptResponse, error) {
 	body := receipts.PutReceiptsJSONRequestBody{
 		TicketId: request.TicketID,
 		Price: receipts.Money{
@@ -37,14 +30,14 @@ func (c ReceiptsClient) IssueReceipt(ctx context.Context, request IssueReceiptRe
 
 	receiptsResp, err := c.clients.Receipts.PutReceiptsWithResponse(ctx, body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if receiptsResp.StatusCode() != http.StatusOK {
-		//if receiptsResp.StatusCode() == http.StatusInternalServerError {
-		//	return ReceiptServiceRetryableError
-		//}
-		return fmt.Errorf("unexpected status code: %v", receiptsResp.StatusCode())
+		return nil, fmt.Errorf("unexpected status code: %v", receiptsResp.StatusCode())
 	}
 
-	return nil
+	return &domain.IssueReceiptResponse{
+		ReceiptNumber: receiptsResp.JSON200.Number,
+		IssuedAt:      receiptsResp.JSON200.IssuedAt,
+	}, nil
 }

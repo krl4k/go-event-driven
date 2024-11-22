@@ -3,29 +3,26 @@ package main
 import (
 	"context"
 	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
-	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
-	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 	nethttp "net/http"
 	"os"
 	"os/signal"
-	"tickets/internal/application/services"
+	"tickets/internal/app"
 	"tickets/internal/infrastructure/clients"
-	"tickets/internal/infrastructure/event_publisher"
-	"tickets/internal/interfaces/events"
-	"tickets/internal/interfaces/http"
 )
 
 func main() {
-	logger := zerolog.New(os.Stdout)
 	wlogger := watermill.NewStdLogger(false, false)
 
-	commonClients, err := commonClients.NewClients(os.Getenv("GATEWAY_ADDR"),
+	gatewayAddr := os.Getenv("GATEWAY_ADDR")
+	redisAddr := os.Getenv("REDIS_ADDR")
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+	commonClients, err := commonClients.NewClients(gatewayAddr,
 		func(ctx context.Context, req *nethttp.Request) error {
 			req.Header.Set("Correlation-ID", log.CorrelationIDFromContext(ctx))
 			return nil
@@ -34,99 +31,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	receiptsClient := clients.NewReceiptsClient(commonClients)
 	spreadsheetsClient := clients.NewSpreadsheetsClient(commonClients)
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr: os.Getenv("REDIS_ADDR"),
-	})
-
-	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
-		Client: rdb,
-	}, wlogger)
-
-	tpublisher := event_publisher.NewTicketBookingConfirmedPublisher(publisher)
-
-	ticketConfirmationService := services.NewTicketConfirmationService(tpublisher)
-
-	router, err := message.NewRouter(message.RouterConfig{}, wlogger)
+	a, err := app.NewApp(wlogger, spreadsheetsClient, receiptsClient, rdb)
 	if err != nil {
 		panic(err)
 	}
-
-	e := commonHTTP.NewEcho()
-	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
-
-	appendToTrackerSubscriber, err := createSubscribers(rdb, wlogger, "append-to-tracker-consumer-group")
-	if err != nil {
-		wlogger.Error("error creating subscriber", err, nil)
-		return
-	}
-	issueReceiptSubscriber, err := createSubscribers(rdb, wlogger, "issue-receipt-consumer-group")
-	if err != nil {
-		wlogger.Error("error creating subscriber", err, nil)
-		return
-	}
-
-	_ = events.NewEventHandlers(
-		wlogger,
-		router,
-		appendToTrackerSubscriber,
-		issueReceiptSubscriber,
-		spreadsheetsClient,
-		receiptsClient)
 
 	ctx := context.Background()
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		logger.Info().Msg("starting router")
-
-		return router.Run(ctx)
-	})
-
-	g.Go(func() error {
-		<-router.Running()
-		logger.Info().Msg("router is running")
-
-		logger.Info().Msg("starting server")
-		return srv.Start()
-	})
-
-	g.Go(func() error {
-		// Shut down
-		<-ctx.Done()
-
-		err = srv.Stop(ctx)
-		if err != nil {
-			logger.Err(err).Msg("error stopping server")
-		}
-
-		return err
-	})
-
-	// Will block until all goroutines finish
-	err = g.Wait()
-	if err != nil {
-		panic(err)
-	}
-}
-
-func createSubscribers(
-	rdb *redis.Client,
-	logger watermill.LoggerAdapter,
-	consumerGroup string,
-) (*redisstream.Subscriber, error) {
-	sub, err := redisstream.NewSubscriber(redisstream.SubscriberConfig{
-		Client:        rdb,
-		ConsumerGroup: consumerGroup,
-	}, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	return sub, nil
+	a.Run(ctx)
 }

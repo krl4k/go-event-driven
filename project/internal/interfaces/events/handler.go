@@ -1,22 +1,30 @@
 package events
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	domain "tickets/internal/domain/tickets"
-	"tickets/internal/infrastructure/clients"
 	"time"
 )
+
+type SpreadsheetsAPI interface {
+	AppendRow(ctx context.Context, req domain.AppendToTrackerRequest) error
+}
+
+type ReceiptsService interface {
+	IssueReceipt(ctx context.Context, request domain.IssueReceiptRequest) (*domain.IssueReceiptResponse, error)
+}
 
 type EventHandlers struct {
 	router                 *message.Router
 	appendToTrackerSub     message.Subscriber
 	issueReceiptSubscriber message.Subscriber
-	spreadsheetsClient     clients.SpreadsheetsClient
-	receiptsClient         clients.ReceiptsClient
+	spreadsheetsClient     SpreadsheetsAPI
+	receiptsClient         ReceiptsService
 }
 
 func NewEventHandlers(
@@ -24,8 +32,8 @@ func NewEventHandlers(
 	router *message.Router,
 	appendToTrackerSub message.Subscriber,
 	issueReceiptSubscriber message.Subscriber,
-	spreadsheetsClient clients.SpreadsheetsClient,
-	receiptsClient clients.ReceiptsClient,
+	spreadsheetsClient SpreadsheetsAPI,
+	receiptsClient ReceiptsService,
 ) *EventHandlers {
 	eh := &EventHandlers{
 		router:                 router,
@@ -93,13 +101,15 @@ func (h *EventHandlers) printTicketsHandler(msg *message.Message) error {
 		payload.Price.Currency = "USD"
 	}
 	return h.spreadsheetsClient.AppendRow(
-		msg.Context(),
-		"tickets-to-print",
-		[]string{
-			payload.TicketId,
-			payload.CustomerEmail,
-			payload.Price.Amount,
-			payload.Price.Currency})
+		msg.Context(), domain.AppendToTrackerRequest{
+			SpreadsheetName: "tickets-to-print",
+			Rows: []string{
+				payload.TicketId,
+				payload.CustomerEmail,
+				payload.Price.Amount,
+				payload.Price.Currency,
+			},
+		})
 
 }
 
@@ -122,13 +132,16 @@ func (h *EventHandlers) refundTicketsHandler(msg *message.Message) error {
 	}
 	return h.spreadsheetsClient.AppendRow(
 		msg.Context(),
-		"tickets-to-refund",
-		[]string{
-			payload.TicketId,
-			payload.CustomerEmail,
-			payload.Price.Amount,
-			payload.Price.Currency,
-		})
+		domain.AppendToTrackerRequest{
+			SpreadsheetName: "tickets-to-refund",
+			Rows: []string{
+				payload.TicketId,
+				payload.CustomerEmail,
+				payload.Price.Amount,
+				payload.Price.Currency,
+			},
+		},
+	)
 }
 
 func (h *EventHandlers) issueReceiptHandler(msg *message.Message) error {
@@ -141,10 +154,11 @@ func (h *EventHandlers) issueReceiptHandler(msg *message.Message) error {
 	if payload.Price.Currency == "" {
 		payload.Price.Currency = "USD"
 	}
-	return h.receiptsClient.IssueReceipt(
+	_, err = h.receiptsClient.IssueReceipt(
 		msg.Context(),
-		clients.IssueReceiptRequest{
+		domain.IssueReceiptRequest{
 			TicketID: payload.TicketId,
 			Price:    payload.Price,
 		})
+	return err
 }

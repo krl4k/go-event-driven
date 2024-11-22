@@ -1,4 +1,4 @@
-package tests
+package tests_experiments
 
 import (
 	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"

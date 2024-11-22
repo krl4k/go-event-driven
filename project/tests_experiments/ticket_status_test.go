@@ -1,6 +1,6 @@
 //go:build component
 
-package tests
+package tests_experiments
 
 import (
 	"bytes"
