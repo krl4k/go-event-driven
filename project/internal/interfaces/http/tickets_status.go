@@ -17,12 +17,12 @@ type Ticket struct {
 	} `json:"price"`
 }
 
-type TicketsConfirmationRequest struct {
+type TicketsStatusRequest struct {
 	Tickets []Ticket `json:"tickets"`
 }
 
 func (s *Server) TicketsStatusHandler(ctx echo.Context) error {
-	var request TicketsConfirmationRequest
+	var request TicketsStatusRequest
 	err := ctx.Bind(&request)
 	if err != nil {
 		return err

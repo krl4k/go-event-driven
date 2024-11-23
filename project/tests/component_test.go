@@ -7,6 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
+	"github.com/lithammer/shortuuid/v3"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,14 +127,42 @@ type Price struct {
 }
 
 type Ticket struct {
-	TicketId      string `json:"ticket_id"`
+	TicketID      string `json:"ticket_id"`
 	Status        string `json:"status"`
 	CustomerEmail string `json:"customer_email"`
 	Price         Price  `json:"price"`
 }
 
-type TicketsConfirmationRequest struct {
+type TicketsStatusRequest struct {
 	Tickets []Ticket `json:"tickets"`
+}
+
+func sendTicketsStatus(t *testing.T, req TicketsStatusRequest) {
+	t.Helper()
+
+	payload, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	correlationID := shortuuid.New()
+
+	ticketIDs := make([]string, 0, len(req.Tickets))
+	for _, ticket := range req.Tickets {
+		ticketIDs = append(ticketIDs, ticket.TicketID)
+	}
+
+	httpReq, err := http.NewRequest(
+		http.MethodPost,
+		"http://localhost:8080/tickets-status",
+		bytes.NewBuffer(payload),
+	)
+	require.NoError(t, err)
+
+	httpReq.Header.Set("Correlation-ID", correlationID)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func (suite *ComponentTestSuite) TestConfirmedTickets() {
@@ -143,10 +172,10 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 	status := "confirmed"
 	amount := "100.00"
 	currency := "USD"
-	testRequest := TicketsConfirmationRequest{
+	testRequest := TicketsStatusRequest{
 		Tickets: []Ticket{
 			{
-				TicketId:      ticketID,
+				TicketID:      ticketID,
 				Status:        status,
 				CustomerEmail: customerEmail,
 				Price: Price{
@@ -186,17 +215,8 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 			spreadsheetsCallCount.Add(1)
 		})
 
-	// Perform HTTP request
-	requestBody, err := json.Marshal(testRequest)
-	require.NoError(suite.T(), err, "Failed to marshal test request")
-
-	resp, err := suite.httpClient.Post(
-		"http://127.0.0.1:8080/tickets-status",
-		"application/json",
-		bytes.NewBuffer(requestBody),
-	)
-	require.NoError(suite.T(), err, "Failed to send HTTP request")
-	require.Equal(suite.T(), http.StatusOK, resp.StatusCode, "Unexpected HTTP status code")
+	// Perform request
+	sendTicketsStatus(suite.T(), testRequest)
 
 	require.Eventually(
 		suite.T(),
@@ -216,10 +236,10 @@ func (suite *ComponentTestSuite) TestCancelledTickets() {
 	status := "cancelled"
 	amount := "100.00"
 	currency := "USD"
-	testRequest := TicketsConfirmationRequest{
+	testRequest := TicketsStatusRequest{
 		Tickets: []Ticket{
 			{
-				TicketId:      ticketID,
+				TicketID:      ticketID,
 				Status:        status,
 				CustomerEmail: customerEmail,
 				Price: Price{
@@ -247,17 +267,8 @@ func (suite *ComponentTestSuite) TestCancelledTickets() {
 			spreadsheetsCallCount.Add(1)
 		})
 
-	// Perform HTTP request
-	requestBody, err := json.Marshal(testRequest)
-	require.NoError(suite.T(), err, "Failed to marshal test request")
-
-	resp, err := suite.httpClient.Post(
-		"http://127.0.0.1:8080/tickets-status",
-		"application/json",
-		bytes.NewBuffer(requestBody),
-	)
-	require.NoError(suite.T(), err, "Failed to send HTTP request")
-	require.Equal(suite.T(), http.StatusOK, resp.StatusCode, "Unexpected HTTP status code")
+	// Perform request
+	sendTicketsStatus(suite.T(), testRequest)
 
 	require.Eventually(
 		suite.T(),
