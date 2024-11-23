@@ -45,7 +45,7 @@ func (s *Server) TicketsStatusHandler(ctx echo.Context) error {
 		WithField("correlation_id", log.CorrelationIDFromContext(ctx.Request().Context())).
 		Info("Confirming tickets http handler")
 
-	s.ticketConfirmationService.ConfirmTickets(ctx.Request().Context(), tickets)
+	s.ticketConfirmationService.ProcessTickets(ctx.Request().Context(), tickets)
 
 	return ctx.NoContent(http.StatusOK)
 }

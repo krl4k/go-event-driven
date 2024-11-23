@@ -7,19 +7,19 @@ import (
 	"time"
 )
 
-type TicketConfirmationService struct {
+type TicketService struct {
 	publisher domain.TicketBookingPublisher
 }
 
 func NewTicketConfirmationService(
 	publisher domain.TicketBookingPublisher,
-) *TicketConfirmationService {
-	return &TicketConfirmationService{
+) *TicketService {
+	return &TicketService{
 		publisher: publisher,
 	}
 }
 
-func (s *TicketConfirmationService) ConfirmTickets(ctx context.Context, tickets []domain.Ticket) {
+func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Ticket) {
 	for _, ticket := range tickets {
 		if ticket.Status == "confirmed" {
 			s.publisher.PublishConfirmed(ctx, domain.TicketBookingConfirmedEvent{

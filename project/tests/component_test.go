@@ -78,7 +78,6 @@ func (suite *ComponentTestSuite) SetupSuite() {
 	)
 	require.NoError(suite.T(), err, "Failed to initialize the app")
 
-	// Start the app in a separate goroutine
 	go func() {
 		err := suite.app.Run(suite.ctx)
 		if err != nil {
@@ -90,24 +89,66 @@ func (suite *ComponentTestSuite) SetupSuite() {
 	waitForHttpServer(suite.T())
 }
 
+func waitForHttpServer(t *testing.T) {
+	t.Helper()
+
+	require.EventuallyWithT(
+		t,
+		func(t *assert.CollectT) {
+			resp, err := http.Get("http://localhost:8080/health")
+			if !assert.NoError(t, err) {
+				return
+			}
+			defer resp.Body.Close()
+
+			if assert.Less(t, resp.StatusCode, 300, "API not ready, http status: %d", resp.StatusCode) {
+				return
+			}
+		},
+		time.Second*15,
+		time.Millisecond*50,
+	)
+}
+
 func (suite *ComponentTestSuite) TearDownSuite() {
 	// Clean up resources
 	require.NoError(suite.T(), suite.redisContainer.Terminate(suite.ctx), "Failed to terminate Redis container")
 	suite.ctrl.Finish()
 }
 
-func (suite *ComponentTestSuite) TestCreateTicket() {
+// Supporting Types
+type Price struct {
+	Amount   string `json:"amount"`
+	Currency string `json:"currency"`
+}
+
+type Ticket struct {
+	TicketId      string `json:"ticket_id"`
+	Status        string `json:"status"`
+	CustomerEmail string `json:"customer_email"`
+	Price         Price  `json:"price"`
+}
+
+type TicketsConfirmationRequest struct {
+	Tickets []Ticket `json:"tickets"`
+}
+
+func (suite *ComponentTestSuite) TestConfirmedTickets() {
 	// Test data
 	ticketID := uuid.NewString()
+	customerEmail := "test1@example.com"
+	status := "confirmed"
+	amount := "100.00"
+	currency := "USD"
 	testRequest := TicketsConfirmationRequest{
 		Tickets: []Ticket{
 			{
 				TicketId:      ticketID,
-				Status:        "confirmed",
-				CustomerEmail: "test1@example.com",
+				Status:        status,
+				CustomerEmail: customerEmail,
 				Price: Price{
-					Amount:   "100.00",
-					Currency: "USD",
+					Amount:   amount,
+					Currency: currency,
 				},
 			},
 		},
@@ -116,7 +157,10 @@ func (suite *ComponentTestSuite) TestCreateTicket() {
 	var spreadsheetsCallCount atomic.Int32
 
 	suite.receiptsMock.EXPECT().
-		IssueReceipt(gomock.Any(), gomock.Any()).
+		IssueReceipt(gomock.Any(), domain.IssueReceiptRequest{
+			TicketID: ticketID,
+			Price:    domain.Money{Amount: amount, Currency: currency},
+		}).
 		Return(nil, nil).
 		Times(1).
 		Do(func(context.Context, domain.IssueReceiptRequest) {
@@ -124,7 +168,15 @@ func (suite *ComponentTestSuite) TestCreateTicket() {
 		})
 
 	suite.spreadsheetsMock.EXPECT().
-		AppendRow(gomock.Any(), gomock.Any()).
+		AppendRow(gomock.Any(), domain.AppendToTrackerRequest{
+			SpreadsheetName: "tickets-to-print",
+			Rows: []string{
+				ticketID,
+				customerEmail,
+				amount,
+				currency,
+			},
+		}).
 		Return(nil).
 		Times(1).
 		Do(func(context.Context, domain.AppendToTrackerRequest) {
@@ -154,40 +206,63 @@ func (suite *ComponentTestSuite) TestCreateTicket() {
 	)
 }
 
-func waitForHttpServer(t *testing.T) {
-	t.Helper()
-
-	require.EventuallyWithT(
-		t,
-		func(t *assert.CollectT) {
-			resp, err := http.Get("http://localhost:8080/health")
-			if !assert.NoError(t, err) {
-				return
-			}
-			defer resp.Body.Close()
-
-			if assert.Less(t, resp.StatusCode, 300, "API not ready, http status: %d", resp.StatusCode) {
-				return
-			}
+func (suite *ComponentTestSuite) TestCancelledTickets() {
+	// Test data
+	ticketID := uuid.NewString()
+	customerEmail := "test1@example.com"
+	status := "cancelled"
+	amount := "100.00"
+	currency := "USD"
+	testRequest := TicketsConfirmationRequest{
+		Tickets: []Ticket{
+			{
+				TicketId:      ticketID,
+				Status:        status,
+				CustomerEmail: customerEmail,
+				Price: Price{
+					Amount:   amount,
+					Currency: currency,
+				},
+			},
 		},
-		time.Second*15,
-		time.Millisecond*50,
+	}
+	var spreadsheetsCallCount atomic.Int32
+
+	suite.spreadsheetsMock.EXPECT().
+		AppendRow(gomock.Any(), domain.AppendToTrackerRequest{
+			SpreadsheetName: "tickets-to-refund",
+			Rows: []string{
+				ticketID,
+				customerEmail,
+				amount,
+				currency,
+			},
+		}).
+		Return(nil).
+		Times(1).
+		Do(func(context.Context, domain.AppendToTrackerRequest) {
+			spreadsheetsCallCount.Add(1)
+		})
+
+	// Perform HTTP request
+	requestBody, err := json.Marshal(testRequest)
+	require.NoError(suite.T(), err, "Failed to marshal test request")
+
+	resp, err := suite.httpClient.Post(
+		"http://127.0.0.1:8080/tickets-status",
+		"application/json",
+		bytes.NewBuffer(requestBody),
 	)
-}
+	require.NoError(suite.T(), err, "Failed to send HTTP request")
+	require.Equal(suite.T(), http.StatusOK, resp.StatusCode, "Unexpected HTTP status code")
 
-// Supporting Types
-type Price struct {
-	Amount   string `json:"amount"`
-	Currency string `json:"currency"`
-}
-
-type Ticket struct {
-	TicketId      string `json:"ticket_id"`
-	Status        string `json:"status"`
-	CustomerEmail string `json:"customer_email"`
-	Price         Price  `json:"price"`
-}
-
-type TicketsConfirmationRequest struct {
-	Tickets []Ticket `json:"tickets"`
+	require.Eventually(
+		suite.T(),
+		func() bool {
+			return spreadsheetsCallCount.Load() == 1
+		},
+		5*time.Second,
+		100*time.Millisecond,
+		"All mocks should have been called",
+	)
 }

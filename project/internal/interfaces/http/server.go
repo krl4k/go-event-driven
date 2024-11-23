@@ -12,12 +12,12 @@ import (
 type Server struct {
 	e *echo.Echo
 
-	ticketConfirmationService *services.TicketConfirmationService
+	ticketConfirmationService *services.TicketService
 }
 
 func NewServer(
 	e *echo.Echo,
-	ticketConfirmationService *services.TicketConfirmationService,
+	ticketConfirmationService *services.TicketService,
 	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{
