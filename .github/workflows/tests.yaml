@@ -1,4 +1,4 @@
-name: Go Tests with Redis
+name: Event driven go
 
 on:
   push:
