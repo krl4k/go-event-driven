@@ -11,9 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"net/http"
+	"os"
 	"sync/atomic"
 	"testing"
 	"tickets/internal/app"
@@ -28,10 +27,10 @@ type ComponentTestSuite struct {
 	spreadsheetsMock *mocks.MockSpreadsheetsService
 	receiptsMock     *mocks.MockReceiptsService
 	ctx              context.Context
-	redisContainer   testcontainers.Container
-	redisClient      *redis.Client
-	app              *app.App
-	httpClient       *http.Client
+	//redisContainer   testcontainers.Container
+	redisClient *redis.Client
+	app         *app.App
+	httpClient  *http.Client
 }
 
 func TestComponentTestSuite(t *testing.T) {
@@ -45,27 +44,31 @@ func (suite *ComponentTestSuite) SetupSuite() {
 	suite.receiptsMock = mocks.NewMockReceiptsService(suite.ctrl)
 	suite.ctx = context.Background()
 	suite.httpClient = &http.Client{Timeout: 5 * time.Second}
-
-	// Start Redis container
-	req := testcontainers.ContainerRequest{
-		Image:        "redis:latest",
-		ExposedPorts: []string{"6379/tcp"},
-		WaitingFor:   wait.ForLog("Ready to accept connections"),
-	}
 	var err error
-	suite.redisContainer, err = testcontainers.GenericContainer(suite.ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	require.NoError(suite.T(), err, "Failed to start Redis container")
 
-	redisAddr, err := suite.redisContainer.MappedPort(suite.ctx, "6379/tcp")
-	require.NoError(suite.T(), err, "Failed to map Redis port")
+	/*
+		// Start Redis container
+		req := testcontainers.ContainerRequest{
+			Image:        "redis:latest",
+			ExposedPorts: []string{"6379/tcp"},
+			WaitingFor:   wait.ForLog("Ready to accept connections"),
+		}
+		suite.redisContainer, err = testcontainers.GenericContainer(suite.ctx, testcontainers.GenericContainerRequest{
+			ContainerRequest: req,
+			Started:          true,
+		})
+		require.NoError(suite.T(), err, "Failed to start Redis container")
+
+		redisAddr, err := suite.redisContainer.MappedPort(suite.ctx, "6379/tcp")
+		require.NoError(suite.T(), err, "Failed to map Redis port")
+		suite.redisClient = redis.NewClient(&redis.Options{
+			Addr: "localhost:" + redisAddr.Port(),
+		})
+	*/
 
 	suite.redisClient = redis.NewClient(&redis.Options{
-		Addr: "localhost:" + redisAddr.Port(),
+		Addr: os.Getenv("REDIS_ADDR"),
 	})
-
 	// Verify Redis connectivity
 	require.NoError(suite.T(), suite.redisClient.Ping(suite.ctx).Err(), "Failed to connect to Redis")
 
@@ -112,7 +115,7 @@ func waitForHttpServer(t *testing.T) {
 
 func (suite *ComponentTestSuite) TearDownSuite() {
 	// Clean up resources
-	require.NoError(suite.T(), suite.redisContainer.Terminate(suite.ctx), "Failed to terminate Redis container")
+	//require.NoError(suite.T(), suite.redisContainer.Terminate(suite.ctx), "Failed to terminate Redis container")
 	suite.ctrl.Finish()
 }
 
