@@ -11,10 +11,12 @@ import (
 	"time"
 )
 
-type SpreadsheetsAPI interface {
+//go:generate mockgen -destination=mocks/spreadsheets_service_mock.go -package=mocks . SpreadsheetsService
+type SpreadsheetsService interface {
 	AppendRow(ctx context.Context, req domain.AppendToTrackerRequest) error
 }
 
+//go:generate mockgen -destination=mocks/receipts_service_mock.go -package=mocks . ReceiptsService
 type ReceiptsService interface {
 	IssueReceipt(ctx context.Context, request domain.IssueReceiptRequest) (*domain.IssueReceiptResponse, error)
 }
@@ -23,7 +25,7 @@ type EventHandlers struct {
 	router                 *message.Router
 	appendToTrackerSub     message.Subscriber
 	issueReceiptSubscriber message.Subscriber
-	spreadsheetsClient     SpreadsheetsAPI
+	spreadsheetsClient     SpreadsheetsService
 	receiptsClient         ReceiptsService
 }
 
@@ -32,7 +34,7 @@ func NewEventHandlers(
 	router *message.Router,
 	appendToTrackerSub message.Subscriber,
 	issueReceiptSubscriber message.Subscriber,
-	spreadsheetsClient SpreadsheetsAPI,
+	spreadsheetsClient SpreadsheetsService,
 	receiptsClient ReceiptsService,
 ) *EventHandlers {
 	eh := &EventHandlers{

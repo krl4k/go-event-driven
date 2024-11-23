@@ -26,7 +26,7 @@ type App struct {
 
 func NewApp(
 	watermillLogger watermill.LoggerAdapter,
-	spreadsheetsClient events.SpreadsheetsAPI,
+	spreadsheetsClient events.SpreadsheetsService,
 	receiptsClient events.ReceiptsService,
 	redisClient *redis.Client,
 ) (*App, error) {

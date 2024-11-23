@@ -32,19 +32,6 @@ func NewServer(
 		return c.String(http.StatusOK, "ok")
 	})
 
-	//e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-	//	return func(c echo.Context) error {
-	//		correlationID := c.Request().Header.Get("Correlation-ID")
-	//		if correlationID == "" {
-	//			correlationID = uuid.NewString()
-	//		}
-	//
-	//		ctx := log.ContextWithCorrelationID(c.Request().Context(), correlationID)
-	//
-	//		c.SetRequest(c.Request().WithContext(ctx))
-	//		return next(c)
-	//	}
-	//})
 	// logging middleware
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
