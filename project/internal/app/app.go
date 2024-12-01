@@ -6,6 +6,7 @@ import (
 	_ "github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
@@ -24,6 +25,21 @@ type App struct {
 	srv             *http.Server
 }
 
+func NewEventBus(pub message.Publisher) (*cqrs.EventBus, error) {
+	return cqrs.NewEventBusWithConfig(
+		pub,
+		cqrs.EventBusConfig{
+			GeneratePublishTopic: func(params cqrs.GenerateEventPublishTopicParams) (string, error) {
+				return params.EventName, nil
+			},
+			Marshaler: cqrs.JSONMarshaler{
+				GenerateName: cqrs.StructName,
+			},
+			Logger: nil,
+		},
+	)
+}
+
 func NewApp(
 	watermillLogger watermill.LoggerAdapter,
 	spreadsheetsClient events.SpreadsheetsService,
@@ -35,17 +51,20 @@ func NewApp(
 		return nil, err
 	}
 
-	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
+	var publisher message.Publisher
+	publisher, err = redisstream.NewPublisher(redisstream.PublisherConfig{
 		Client: redisClient,
 	}, watermillLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	tpublisher := event_publisher.NewTicketBookingConfirmedPublisher(publisher)
-	_ = services.NewTicketConfirmationService(tpublisher)
+	publisher = event_publisher.CorrelationPublisherDecorator{
+		publisher,
+	}
+	eventBus, err := NewEventBus(publisher)
 
-	ticketConfirmationService := services.NewTicketConfirmationService(tpublisher)
+	ticketConfirmationService := services.NewTicketConfirmationService(eventBus)
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
 

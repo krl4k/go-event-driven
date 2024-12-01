@@ -2,27 +2,28 @@ package services
 
 import (
 	"context"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/google/uuid"
 	domain "tickets/internal/domain/tickets"
 	"time"
 )
 
 type TicketService struct {
-	publisher domain.TicketBookingPublisher
+	eb *cqrs.EventBus
 }
 
 func NewTicketConfirmationService(
-	publisher domain.TicketBookingPublisher,
+	eb *cqrs.EventBus,
 ) *TicketService {
 	return &TicketService{
-		publisher: publisher,
+		eb: eb,
 	}
 }
 
 func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Ticket) {
 	for _, ticket := range tickets {
 		if ticket.Status == "confirmed" {
-			s.publisher.PublishConfirmed(ctx, domain.TicketBookingConfirmedEvent{
+			s.eb.Publish(ctx, domain.TicketBookingConfirmedEvent{
 				Header: domain.Header{
 					Id:          uuid.NewString(),
 					PublishedAt: time.Now().Format(time.RFC3339),
@@ -35,7 +36,7 @@ func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Tic
 				},
 			})
 		} else {
-			s.publisher.PublishCanceled(ctx, domain.TicketBookingCanceledEvent{
+			s.eb.Publish(ctx, domain.TicketBookingCanceledEvent{
 				Header: domain.Header{
 					Id:          uuid.NewString(),
 					PublishedAt: time.Now().Format(time.RFC3339),
