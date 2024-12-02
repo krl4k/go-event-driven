@@ -27,7 +27,6 @@ func (f *FollowRequestSentHandler) NewEvent() any {
 }
 
 func (f *FollowRequestSentHandler) Handle(ctx context.Context, event any) error {
-
 	return f.Counter.CountEvent()
 }
 

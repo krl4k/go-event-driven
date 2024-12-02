@@ -8,6 +8,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -16,6 +17,7 @@ import (
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
+	"time"
 )
 
 type App struct {
@@ -25,7 +27,10 @@ type App struct {
 	srv             *http.Server
 }
 
-func NewEventBus(pub message.Publisher) (*cqrs.EventBus, error) {
+func NewEventBus(
+	pub message.Publisher,
+	logger watermill.LoggerAdapter,
+) (*cqrs.EventBus, error) {
 	return cqrs.NewEventBusWithConfig(
 		pub,
 		cqrs.EventBusConfig{
@@ -35,7 +40,31 @@ func NewEventBus(pub message.Publisher) (*cqrs.EventBus, error) {
 			Marshaler: cqrs.JSONMarshaler{
 				GenerateName: cqrs.StructName,
 			},
-			Logger: nil,
+			Logger: logger,
+		},
+	)
+}
+
+func NewEventProcessor(
+	router *message.Router,
+	rdb *redis.Client,
+	marshaler cqrs.CommandEventMarshaler,
+	logger watermill.LoggerAdapter,
+) (*cqrs.EventProcessor, error) {
+	return cqrs.NewEventProcessorWithConfig(
+		router,
+		cqrs.EventProcessorConfig{
+			GenerateSubscribeTopic: func(params cqrs.EventProcessorGenerateSubscribeTopicParams) (string, error) {
+				return params.EventName, nil
+			},
+			SubscriberConstructor: func(params cqrs.EventProcessorSubscriberConstructorParams) (message.Subscriber, error) {
+				return redisstream.NewSubscriber(redisstream.SubscriberConfig{
+					Client:        rdb,
+					ConsumerGroup: "svc-tickets." + params.HandlerName,
+				}, logger)
+			},
+			Marshaler: marshaler,
+			Logger:    logger,
 		},
 	)
 }
@@ -60,32 +89,58 @@ func NewApp(
 	}
 
 	publisher = event_publisher.CorrelationPublisherDecorator{
-		publisher,
+		Publisher: publisher,
 	}
-	eventBus, err := NewEventBus(publisher)
+	eventBus, err := NewEventBus(publisher, watermillLogger)
 
 	ticketConfirmationService := services.NewTicketConfirmationService(eventBus)
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
 
-	appendToTrackerSubscriber, err := createSubscriber(redisClient, watermillLogger, "append-to-tracker-consumer-group")
-	if err != nil {
-		return nil, err
-	}
+	//appendToTrackerSubscriber, err := createSubscriber(redisClient, watermillLogger, "append-to-tracker-consumer-group")
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//issueReceiptSubscriber, err := createSubscriber(redisClient, watermillLogger, "issue-receipt-consumer-group")
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	issueReceiptSubscriber, err := createSubscriber(redisClient, watermillLogger, "issue-receipt-consumer-group")
-	if err != nil {
-		return nil, err
-	}
+	router.AddMiddleware(middleware.Recoverer)
+	router.AddMiddleware(events.CorrelationIDMiddleware)
+	router.AddMiddleware(events.LoggingMiddleware)
+	//router.AddMiddleware(MetadataTypeChecker)
 
-	_ = events.NewEventHandlers(
-		watermillLogger,
-		router,
-		appendToTrackerSubscriber,
-		issueReceiptSubscriber,
-		spreadsheetsClient,
-		receiptsClient,
+	router.AddMiddleware(middleware.Retry{
+		MaxRetries:      10,
+		InitialInterval: time.Millisecond * 100,
+		MaxInterval:     time.Second,
+		Multiplier:      2,
+		Logger:          watermillLogger,
+	}.Middleware)
+
+	// skip marshalling errors before retrying
+	router.AddMiddleware(events.SkipMarshallingErrorsMiddleware)
+
+	marshaler := cqrs.JSONMarshaler{
+		GenerateName: cqrs.StructName,
+	}
+	processor, err := NewEventProcessor(router, redisClient, marshaler, watermillLogger)
+	processor.AddHandlers(
+		events.TicketsToPrintHandler(spreadsheetsClient),
+		events.RefundTicketHandler(spreadsheetsClient),
+		events.IssueReceiptHandler(receiptsClient),
 	)
+
+	//_ = events.NewEventHandlers(
+	//	watermillLogger,
+	//	router,
+	//	appendToTrackerSubscriber,
+	//	issueReceiptSubscriber,
+	//	spreadsheetsClient,
+	//	receiptsClient,
+	//)
 
 	return &App{
 		watermillLogger: watermillLogger,

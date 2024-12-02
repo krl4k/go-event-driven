@@ -23,7 +23,7 @@ func NewTicketConfirmationService(
 func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Ticket) {
 	for _, ticket := range tickets {
 		if ticket.Status == "confirmed" {
-			s.eb.Publish(ctx, domain.TicketBookingConfirmedEvent{
+			s.eb.Publish(ctx, domain.TicketBookingConfirmed{
 				Header: domain.Header{
 					Id:          uuid.NewString(),
 					PublishedAt: time.Now().Format(time.RFC3339),
@@ -36,7 +36,7 @@ func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Tic
 				},
 			})
 		} else {
-			s.eb.Publish(ctx, domain.TicketBookingCanceledEvent{
+			s.eb.Publish(ctx, domain.TicketBookingCanceled{
 				Header: domain.Header{
 					Id:          uuid.NewString(),
 					PublishedAt: time.Now().Format(time.RFC3339),
