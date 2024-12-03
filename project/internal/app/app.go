@@ -17,7 +17,11 @@ import (
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
+	"tickets/internal/repository"
 	"time"
+
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 )
 
 type App struct {
@@ -25,6 +29,114 @@ type App struct {
 	logger          zerolog.Logger
 	router          *message.Router
 	srv             *http.Server
+	db              *sqlx.DB
+}
+
+func NewApp(
+	watermillLogger watermill.LoggerAdapter,
+	spreadsheetsClient events.SpreadsheetsService,
+	receiptsClient events.ReceiptsService,
+	redisClient *redis.Client,
+	db *sqlx.DB,
+) (*App, error) {
+	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
+	if err != nil {
+		return nil, err
+	}
+
+	var publisher message.Publisher
+	publisher, err = redisstream.NewPublisher(redisstream.PublisherConfig{
+		Client: redisClient,
+	}, watermillLogger)
+	if err != nil {
+		return nil, err
+	}
+
+	publisher = event_publisher.CorrelationPublisherDecorator{
+		Publisher: publisher,
+	}
+	eventBus, err := NewEventBus(publisher, watermillLogger)
+
+	ticketConfirmationService := services.NewTicketConfirmationService(eventBus)
+	e := commonHTTP.NewEcho()
+	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
+
+	repo := repository.NewTicketsRepo(db)
+
+	router.AddMiddleware(middleware.Recoverer)
+	router.AddMiddleware(events.CorrelationIDMiddleware)
+	router.AddMiddleware(events.LoggingMiddleware)
+
+	router.AddMiddleware(middleware.Retry{
+		MaxRetries:      10,
+		InitialInterval: time.Millisecond * 100,
+		MaxInterval:     time.Second,
+		Multiplier:      2,
+		Logger:          watermillLogger,
+	}.Middleware)
+
+	// skip marshalling errors before retrying
+	router.AddMiddleware(events.SkipMarshallingErrorsMiddleware)
+
+	marshaler := cqrs.JSONMarshaler{
+		GenerateName: cqrs.StructName,
+	}
+	processor, err := NewEventProcessor(router, redisClient, marshaler, watermillLogger)
+	processor.AddHandlers(
+		events.TicketsToPrintHandler(spreadsheetsClient),
+		events.RefundTicketHandler(spreadsheetsClient),
+		events.IssueReceiptHandler(receiptsClient),
+		events.StoreTicketsHandler(repo),
+	)
+
+	return &App{
+		watermillLogger: watermillLogger,
+		logger:          zerolog.New(os.Stdout),
+		router:          router,
+		srv:             srv,
+		db:              db,
+	}, nil
+}
+
+func (a *App) Run(ctx context.Context) error {
+	err := repository.InitializeDBSchema(a.db)
+	if err != nil {
+		return err
+	}
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		a.logger.Info().Msg("starting router")
+
+		return a.router.Run(ctx)
+	})
+
+	g.Go(func() error {
+		<-a.router.Running()
+		a.logger.Info().Msg("router is running")
+
+		a.logger.Info().Msg("starting server")
+		return a.srv.Start()
+	})
+
+	g.Go(func() error {
+		// Shut down
+		<-ctx.Done()
+
+		err := a.srv.Stop(ctx)
+		if err != nil {
+			a.logger.Err(err).Msg("error stopping server")
+		}
+
+		return err
+	})
+
+	// Will block until all goroutines finish
+	err := g.Wait()
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }
 
 func NewEventBus(
@@ -67,137 +179,4 @@ func NewEventProcessor(
 			Logger:    logger,
 		},
 	)
-}
-
-func NewApp(
-	watermillLogger watermill.LoggerAdapter,
-	spreadsheetsClient events.SpreadsheetsService,
-	receiptsClient events.ReceiptsService,
-	redisClient *redis.Client,
-) (*App, error) {
-	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
-	if err != nil {
-		return nil, err
-	}
-
-	var publisher message.Publisher
-	publisher, err = redisstream.NewPublisher(redisstream.PublisherConfig{
-		Client: redisClient,
-	}, watermillLogger)
-	if err != nil {
-		return nil, err
-	}
-
-	publisher = event_publisher.CorrelationPublisherDecorator{
-		Publisher: publisher,
-	}
-	eventBus, err := NewEventBus(publisher, watermillLogger)
-
-	ticketConfirmationService := services.NewTicketConfirmationService(eventBus)
-	e := commonHTTP.NewEcho()
-	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
-
-	//appendToTrackerSubscriber, err := createSubscriber(redisClient, watermillLogger, "append-to-tracker-consumer-group")
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//issueReceiptSubscriber, err := createSubscriber(redisClient, watermillLogger, "issue-receipt-consumer-group")
-	//if err != nil {
-	//	return nil, err
-	//}
-
-	router.AddMiddleware(middleware.Recoverer)
-	router.AddMiddleware(events.CorrelationIDMiddleware)
-	router.AddMiddleware(events.LoggingMiddleware)
-	//router.AddMiddleware(MetadataTypeChecker)
-
-	router.AddMiddleware(middleware.Retry{
-		MaxRetries:      10,
-		InitialInterval: time.Millisecond * 100,
-		MaxInterval:     time.Second,
-		Multiplier:      2,
-		Logger:          watermillLogger,
-	}.Middleware)
-
-	// skip marshalling errors before retrying
-	router.AddMiddleware(events.SkipMarshallingErrorsMiddleware)
-
-	marshaler := cqrs.JSONMarshaler{
-		GenerateName: cqrs.StructName,
-	}
-	processor, err := NewEventProcessor(router, redisClient, marshaler, watermillLogger)
-	processor.AddHandlers(
-		events.TicketsToPrintHandler(spreadsheetsClient),
-		events.RefundTicketHandler(spreadsheetsClient),
-		events.IssueReceiptHandler(receiptsClient),
-	)
-
-	//_ = events.NewEventHandlers(
-	//	watermillLogger,
-	//	router,
-	//	appendToTrackerSubscriber,
-	//	issueReceiptSubscriber,
-	//	spreadsheetsClient,
-	//	receiptsClient,
-	//)
-
-	return &App{
-		watermillLogger: watermillLogger,
-		logger:          zerolog.New(os.Stdout),
-		router:          router,
-		srv:             srv,
-	}, nil
-}
-
-func (a *App) Run(ctx context.Context) error {
-	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		a.logger.Info().Msg("starting router")
-
-		return a.router.Run(ctx)
-	})
-
-	g.Go(func() error {
-		<-a.router.Running()
-		a.logger.Info().Msg("router is running")
-
-		a.logger.Info().Msg("starting server")
-		return a.srv.Start()
-	})
-
-	g.Go(func() error {
-		// Shut down
-		<-ctx.Done()
-
-		err := a.srv.Stop(ctx)
-		if err != nil {
-			a.logger.Err(err).Msg("error stopping server")
-		}
-
-		return err
-	})
-
-	// Will block until all goroutines finish
-	err := g.Wait()
-	if err != nil {
-		panic(err)
-	}
-	return nil
-}
-
-func createSubscriber(
-	rdb *redis.Client,
-	logger watermill.LoggerAdapter,
-	consumerGroup string,
-) (*redisstream.Subscriber, error) {
-	sub, err := redisstream.NewSubscriber(redisstream.SubscriberConfig{
-		Client:        rdb,
-		ConsumerGroup: consumerGroup,
-	}, logger)
-	if err != nil {
-		return nil, err
-	}
-
-	return sub, nil
 }

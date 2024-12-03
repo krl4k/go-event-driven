@@ -5,6 +5,7 @@ import (
 	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
+	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
 	nethttp "net/http"
 	"os"
@@ -34,7 +35,13 @@ func main() {
 	receiptsClient := clients.NewReceiptsClient(commonClients)
 	spreadsheetsClient := clients.NewSpreadsheetsClient(commonClients)
 
-	a, err := app.NewApp(wlogger, spreadsheetsClient, receiptsClient, rdb)
+	db, err := sqlx.Open("postgres", os.Getenv("POSTGRES_URL"))
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	a, err := app.NewApp(wlogger, spreadsheetsClient, receiptsClient, rdb, db)
 	if err != nil {
 		panic(err)
 	}

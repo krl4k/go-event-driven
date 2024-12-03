@@ -7,6 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/lithammer/shortuuid/v3"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +31,7 @@ type ComponentTestSuite struct {
 	ctx              context.Context
 	//redisContainer   testcontainers.Container
 	redisClient *redis.Client
+	db          *sqlx.DB
 	app         *app.App
 	httpClient  *http.Client
 }
@@ -73,12 +75,15 @@ func (suite *ComponentTestSuite) SetupSuite() {
 	// Verify Redis connectivity
 	require.NoError(suite.T(), suite.redisClient.Ping(suite.ctx).Err(), "Failed to connect to Redis")
 
+	suite.db = sqlx.MustConnect("postgres", os.Getenv("POSTGRES_URL"))
+
 	// Initialize the app
 	suite.app, err = app.NewApp(
 		watermill.NopLogger{},
 		suite.spreadsheetsMock,
 		suite.receiptsMock,
 		suite.redisClient,
+		suite.db,
 	)
 	require.NoError(suite.T(), err, "Failed to initialize the app")
 
