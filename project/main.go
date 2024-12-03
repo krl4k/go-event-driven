@@ -50,5 +50,8 @@ func main() {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	a.Run(ctx)
+	err = a.Run(ctx)
+	if err != nil {
+		panic(err)
+	}
 }

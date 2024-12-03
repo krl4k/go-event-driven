@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -13,6 +14,9 @@ CREATE TABLE IF NOT EXISTS tickets (
 	price_currency CHAR(3) NOT NULL,
 	customer_email VARCHAR(255) NOT NULL
 );`)
+	if err != nil {
+		return fmt.Errorf("failed to create tickets table: %w", err)
 
-	return err
+	}
+	return nil
 }

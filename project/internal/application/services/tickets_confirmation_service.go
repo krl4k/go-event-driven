@@ -8,15 +8,22 @@ import (
 	"time"
 )
 
+type TicketsRepository interface {
+	List(ctx context.Context) ([]domain.Ticket, error)
+}
+
 type TicketService struct {
-	eb *cqrs.EventBus
+	eb          *cqrs.EventBus
+	ticketsRepo TicketsRepository
 }
 
 func NewTicketConfirmationService(
 	eb *cqrs.EventBus,
+	ticketsRepo TicketsRepository,
 ) *TicketService {
 	return &TicketService{
-		eb: eb,
+		eb:          eb,
+		ticketsRepo: ticketsRepo,
 	}
 }
 
@@ -50,4 +57,10 @@ func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Tic
 			})
 		}
 	}
+}
+
+func (s *TicketService) GetTickets(ctx context.Context) ([]domain.Ticket, error) {
+	tickets, err := s.ticketsRepo.List(ctx)
+
+	return tickets, err
 }

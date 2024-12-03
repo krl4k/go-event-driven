@@ -21,8 +21,8 @@ type ReceiptsService interface {
 
 //go:generate mockgen -destination=mocks/tickets_repository_mock.go -package=mocks . TicketsRepository
 type TicketsRepository interface {
-	Create(t *domain.Ticket) error
-	Delete(ticketID uuid.UUID) error
+	Create(ctx context.Context, t *domain.Ticket) error
+	Delete(ctx context.Context, ticketID uuid.UUID) error
 }
 
 func TicketsToPrintHandler(
@@ -107,7 +107,7 @@ func StoreTicketsHandler(
 		func(ctx context.Context, payload *domain.TicketBookingConfirmed) error {
 			log.FromContext(ctx).Info("Storing ticket")
 
-			return ticketsRepository.Create(&domain.Ticket{
+			return ticketsRepository.Create(ctx, &domain.Ticket{
 				TicketId:      payload.TicketId,
 				Status:        "confirmed",
 				CustomerEmail: payload.CustomerEmail,
@@ -128,7 +128,7 @@ func RemoveTicketsHandler(ticketsRepository TicketsRepository) cqrs.EventHandler
 				return fmt.Errorf("failed to parse ticket id: %w", err)
 			}
 
-			return ticketsRepository.Delete(id)
+			return ticketsRepository.Delete(ctx, id)
 		},
 	)
 }

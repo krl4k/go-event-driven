@@ -12,7 +12,7 @@ import (
 type Server struct {
 	e *echo.Echo
 
-	ticketConfirmationService *services.TicketService
+	ticketsService *services.TicketService
 }
 
 func NewServer(
@@ -21,10 +21,11 @@ func NewServer(
 	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{
-		e:                         e,
-		ticketConfirmationService: ticketConfirmationService,
+		e:              e,
+		ticketsService: ticketConfirmationService,
 	}
 	e.POST("/tickets-status", srv.TicketsStatusHandler)
+	e.GET("/tickets", srv.GetTicketsHandler)
 	e.GET("/health", func(c echo.Context) error {
 		if !routerIsRunning() {
 			return c.String(http.StatusServiceUnavailable, "router is not running")

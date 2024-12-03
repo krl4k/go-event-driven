@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -25,7 +26,7 @@ func NewTicketsRepo(db *sqlx.DB) *TicketsRepo {
 }
 
 // Create inserts a new ticket record
-func (r *TicketsRepo) Create(t *domain.Ticket) error {
+func (r *TicketsRepo) Create(ctx context.Context, t *domain.Ticket) error {
 	query := `
         INSERT INTO tickets (
             ticket_id, price_amount, price_currency, customer_email
@@ -38,7 +39,7 @@ func (r *TicketsRepo) Create(t *domain.Ticket) error {
 		return fmt.Errorf("failed to convert domain to model: %w", err)
 	}
 
-	_, err = r.db.Exec(query,
+	_, err = r.db.ExecContext(ctx, query,
 		ticket.ID,
 		ticket.PriceAmount,
 		ticket.PriceCurrency,
@@ -66,57 +67,38 @@ func domainToModel(ticket *domain.Ticket) (*Ticket, error) {
 	}, nil
 }
 
-func (r *TicketsRepo) Delete(ticketID uuid.UUID) error {
+func (r *TicketsRepo) Delete(ctx context.Context, ticketID uuid.UUID) error {
 	query := `DELETE FROM tickets WHERE ticket_id = $1`
-	_, err := r.db.Exec(query, ticketID)
+	_, err := r.db.ExecContext(ctx, query, ticketID)
 	return err
 }
 
-//func (r *TicketsRepo) GetByID(id uuid.UUID) (*Ticket, error) {
-//	var ticket Ticket
-//	query := `
-//        SELECT ticket_id, price_amount, price_currency, customer_email
-//        FROM tickets
-//        WHERE ticket_id = $1`
-//
-//	err := r.db.Get(&ticket, query, id)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return &ticket, nil
-//}
-//func (r *TicketsRepo) Update(ticket *Ticket) error {
-//	query := `
-//        UPDATE tickets
-//        SET price_amount = $2,
-//            price_currency = $3,
-//            customer_email = $4
-//        WHERE ticket_id = $1`
-//
-//	_, err := r.db.Exec(query,
-//		ticket.ID,
-//		ticket.PriceAmount,
-//		ticket.PriceCurrency,
-//		ticket.CustomerEmail,
-//	)
-//	return err
-//}
-//
-//func (r *TicketsRepo) Delete(id uuid.UUID) error {
-//	query := `DELETE FROM tickets WHERE ticket_id = $1`
-//	_, err := r.db.Exec(query, id)
-//	return err
-//}
-//
-//func (r *TicketsRepo) List() ([]Ticket, error) {
-//	var tickets []Ticket
-//	query := `
-//        SELECT ticket_id, price_amount, price_currency, customer_email
-//        FROM tickets`
-//
-//	err := r.db.Select(&tickets, query)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return tickets, nil
-//}
+func (r *TicketsRepo) List(ctx context.Context) ([]domain.Ticket, error) {
+	var tickets []Ticket
+	query := `
+		SELECT ticket_id, price_amount, price_currency, customer_email
+		FROM tickets`
+
+	err := r.db.SelectContext(ctx, &tickets, query)
+	if err != nil {
+		return nil, err
+	}
+
+	convertedTickets := make([]domain.Ticket, 0, len(tickets))
+	for _, ticket := range tickets {
+		convertedTickets = append(convertedTickets, modelToDomain(ticket))
+	}
+
+	return convertedTickets, nil
+}
+
+func modelToDomain(ticket Ticket) domain.Ticket {
+	return domain.Ticket{
+		TicketId:      ticket.ID.String(),
+		CustomerEmail: ticket.CustomerEmail,
+		Price: domain.Money{
+			Amount:   strconv.FormatFloat(ticket.PriceAmount, 'f', 2, 64),
+			Currency: ticket.PriceCurrency,
+		},
+	}
+}

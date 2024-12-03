@@ -7,7 +7,7 @@ import (
 	domain "tickets/internal/domain/tickets"
 )
 
-type Ticket struct {
+type TicketStatusRequest struct {
 	TicketId      string `json:"ticket_id"`
 	Status        string `json:"status"`
 	CustomerEmail string `json:"customer_email"`
@@ -18,7 +18,7 @@ type Ticket struct {
 }
 
 type TicketsStatusRequest struct {
-	Tickets []Ticket `json:"tickets"`
+	Tickets []TicketStatusRequest `json:"tickets"`
 }
 
 func (s *Server) TicketsStatusHandler(ctx echo.Context) error {
@@ -45,7 +45,7 @@ func (s *Server) TicketsStatusHandler(ctx echo.Context) error {
 		WithField("correlation_id", log.CorrelationIDFromContext(ctx.Request().Context())).
 		Info("Confirming tickets http handler")
 
-	s.ticketConfirmationService.ProcessTickets(ctx.Request().Context(), tickets)
+	s.ticketsService.ProcessTickets(ctx.Request().Context(), tickets)
 
 	return ctx.NoContent(http.StatusOK)
 }

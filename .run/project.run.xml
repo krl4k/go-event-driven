@@ -4,6 +4,7 @@
     <working_directory value="$PROJECT_DIR$/project" />
     <envs>
       <env name="GATEWAY_ADDR" value="http://localhost:8888" />
+      <env name="POSTGRES_URL" value="postgres://user:password@localhost:5432/db?sslmode=disable" />
       <env name="REDIS_ADDR" value="localhost:6379" />
     </envs>
     <EXTENSION ID="net.ashald.envfile">
