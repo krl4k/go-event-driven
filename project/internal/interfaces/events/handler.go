@@ -2,8 +2,10 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
+	"github.com/google/uuid"
 	domain "tickets/internal/domain/tickets"
 )
 
@@ -20,6 +22,7 @@ type ReceiptsService interface {
 //go:generate mockgen -destination=mocks/tickets_repository_mock.go -package=mocks . TicketsRepository
 type TicketsRepository interface {
 	Create(t *domain.Ticket) error
+	Delete(ticketID uuid.UUID) error
 }
 
 func TicketsToPrintHandler(
@@ -110,6 +113,22 @@ func StoreTicketsHandler(
 				CustomerEmail: payload.CustomerEmail,
 				Price:         payload.Price,
 			})
+		},
+	)
+}
+
+func RemoveTicketsHandler(ticketsRepository TicketsRepository) cqrs.EventHandler {
+	return cqrs.NewEventHandler(
+		"remove_tickets_handler",
+		func(ctx context.Context, payload *domain.TicketBookingCanceled) error {
+			log.FromContext(ctx).Info("Removing ticket")
+
+			id, err := uuid.Parse(payload.TicketId)
+			if err != nil {
+				return fmt.Errorf("failed to parse ticket id: %w", err)
+			}
+
+			return ticketsRepository.Delete(id)
 		},
 	)
 }

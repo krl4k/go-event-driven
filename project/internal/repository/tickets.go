@@ -66,6 +66,12 @@ func domainToModel(ticket *domain.Ticket) (*Ticket, error) {
 	}, nil
 }
 
+func (r *TicketsRepo) Delete(ticketID uuid.UUID) error {
+	query := `DELETE FROM tickets WHERE ticket_id = $1`
+	_, err := r.db.Exec(query, ticketID)
+	return err
+}
+
 //func (r *TicketsRepo) GetByID(id uuid.UUID) (*Ticket, error) {
 //	var ticket Ticket
 //	query := `

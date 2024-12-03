@@ -87,6 +87,7 @@ func NewApp(
 		events.RefundTicketHandler(spreadsheetsClient),
 		events.IssueReceiptHandler(receiptsClient),
 		events.StoreTicketsHandler(repo),
+		events.RemoveTicketsHandler(repo),
 	)
 
 	return &App{
@@ -132,7 +133,7 @@ func (a *App) Run(ctx context.Context) error {
 	})
 
 	// Will block until all goroutines finish
-	err := g.Wait()
+	err = g.Wait()
 	if err != nil {
 		panic(err)
 	}
