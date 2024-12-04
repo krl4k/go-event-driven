@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
@@ -28,6 +29,7 @@ type ComponentTestSuite struct {
 	ctrl             *gomock.Controller
 	spreadsheetsMock *mocks.MockSpreadsheetsService
 	receiptsMock     *mocks.MockReceiptsService
+	filesMock        *mocks.MockFileStorageService
 	ctx              context.Context
 	//redisContainer   testcontainers.Container
 	redisClient *redis.Client
@@ -45,6 +47,7 @@ func (suite *ComponentTestSuite) SetupSuite() {
 	suite.ctrl = gomock.NewController(suite.T())
 	suite.spreadsheetsMock = mocks.NewMockSpreadsheetsService(suite.ctrl)
 	suite.receiptsMock = mocks.NewMockReceiptsService(suite.ctrl)
+	suite.filesMock = mocks.NewMockFileStorageService(suite.ctrl)
 	suite.ctx = context.Background()
 	suite.httpClient = &http.Client{Timeout: 5 * time.Second}
 	var err error
@@ -82,6 +85,7 @@ func (suite *ComponentTestSuite) SetupSuite() {
 		watermill.NopLogger{},
 		suite.spreadsheetsMock,
 		suite.receiptsMock,
+		suite.filesMock,
 		suite.redisClient,
 		suite.db,
 	)
@@ -192,6 +196,7 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 	}
 	var receiptsCallCount atomic.Int32
 	var spreadsheetsCallCount atomic.Int32
+	var filesCallCount atomic.Int32
 
 	suite.receiptsMock.EXPECT().
 		IssueReceipt(gomock.Any(), domain.IssueReceiptRequest{
@@ -220,13 +225,26 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 			spreadsheetsCallCount.Add(1)
 		})
 
+	suite.filesMock.EXPECT().Upload(
+		gomock.Any(),
+		fmt.Sprintf("%s-ticket.html", ticketID),
+		gomock.Any(),
+	).
+		Return(nil).
+		Times(1).
+		Do(func(_ context.Context, fileID string, _ []byte) {
+			filesCallCount.Add(1)
+		})
+
 	// Perform request
 	sendTicketsStatus(suite.T(), testRequest)
 
 	require.Eventually(
 		suite.T(),
 		func() bool {
-			return receiptsCallCount.Load() == 1 && spreadsheetsCallCount.Load() == 1
+			return receiptsCallCount.Load() == 1 &&
+				spreadsheetsCallCount.Load() == 1 &&
+				filesCallCount.Load() == 1
 		},
 		5*time.Second,
 		100*time.Millisecond,

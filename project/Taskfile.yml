@@ -23,4 +23,6 @@ tasks:
       - go test ./tests/ -v
     env:
       REDIS_ADDR: localhost:6379
+      POSTGRES_URL: postgres://user:password@localhost:5432/db?sslmode=disable
+#    GATEWAY_ADDR=http://localhost:8888;
 

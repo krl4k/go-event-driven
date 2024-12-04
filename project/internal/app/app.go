@@ -36,6 +36,7 @@ func NewApp(
 	watermillLogger watermill.LoggerAdapter,
 	spreadsheetsClient events.SpreadsheetsService,
 	receiptsClient events.ReceiptsService,
+	filesClient events.FileStorageService,
 	redisClient *redis.Client,
 	db *sqlx.DB,
 ) (*App, error) {
@@ -84,9 +85,11 @@ func NewApp(
 	processor, err := NewEventProcessor(router, redisClient, marshaler, watermillLogger)
 	processor.AddHandlers(
 		events.TicketsToPrintHandler(spreadsheetsClient),
-		events.RefundTicketHandler(spreadsheetsClient),
+		events.PrepareTicketsHandler(filesClient),
 		events.IssueReceiptHandler(receiptsClient),
 		events.StoreTicketsHandler(repo),
+
+		events.RefundTicketHandler(spreadsheetsClient),
 		events.RemoveTicketsHandler(repo),
 	)
 

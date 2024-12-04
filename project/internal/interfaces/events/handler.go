@@ -19,6 +19,11 @@ type ReceiptsService interface {
 	IssueReceipt(ctx context.Context, request domain.IssueReceiptRequest) (*domain.IssueReceiptResponse, error)
 }
 
+//go:generate mockgen -destination=mocks/file_storage_service_mock.go -package=mocks . FileStorageService
+type FileStorageService interface {
+	Upload(ctx context.Context, fileID string, content []byte) error
+}
+
 //go:generate mockgen -destination=mocks/tickets_repository_mock.go -package=mocks . TicketsRepository
 type TicketsRepository interface {
 	Create(ctx context.Context, t *domain.Ticket) error
@@ -46,6 +51,38 @@ func TicketsToPrintHandler(
 						payload.Price.Currency,
 					},
 				})
+		},
+	)
+}
+
+func PrepareTicketsHandler(
+	fileStorage FileStorageService,
+) cqrs.EventHandler {
+	return cqrs.NewEventHandler(
+		"prepare_tickets_handler",
+		func(ctx context.Context, payload *domain.TicketBookingConfirmed) error {
+			log.FromContext(ctx).Info("Preparing ticket")
+
+			if payload.Price.Currency == "" {
+				payload.Price.Currency = "USD"
+			}
+
+			fileID := fmt.Sprintf("%s-ticket.html", payload.TicketId)
+			content := []byte(fmt.Sprintf(`
+<!DOCTYPE html>
+	<html>
+		<head>
+			<title>Ticket</title>
+		</head>
+		<body>
+			<h1>Ticket</h1>
+			<p>Ticket ID: %s</p>
+			<p>Price: %s %s</p>
+		</body>	
+	</html>
+		`, payload.TicketId, payload.Price.Amount, payload.Price.Currency))
+
+			return fileStorage.Upload(ctx, fileID, content)
 		},
 	)
 }
