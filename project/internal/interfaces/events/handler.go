@@ -7,6 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/google/uuid"
 	domain "tickets/internal/domain/tickets"
+	"time"
 )
 
 //go:generate mockgen -destination=mocks/spreadsheets_service_mock.go -package=mocks . SpreadsheetsService
@@ -57,6 +58,7 @@ func TicketsToPrintHandler(
 
 func PrepareTicketsHandler(
 	fileStorage FileStorageService,
+	eb *cqrs.EventBus,
 ) cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"prepare_tickets_handler",
@@ -82,7 +84,21 @@ func PrepareTicketsHandler(
 	</html>
 		`, payload.TicketId, payload.Price.Amount, payload.Price.Currency))
 
-			return fileStorage.Upload(ctx, fileID, content)
+			err := fileStorage.Upload(ctx, fileID, content)
+			if err != nil {
+				return fmt.Errorf("failed to upload ticket: %w", err)
+			}
+
+			return eb.Publish(
+				ctx,
+				domain.TicketPrinted{
+					Header: domain.Header{
+						Id:          uuid.NewString(),
+						PublishedAt: time.Now().Format(time.RFC3339),
+					},
+					TicketID: payload.TicketId,
+					FileName: fileID,
+				})
 		},
 	)
 }

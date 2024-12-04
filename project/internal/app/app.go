@@ -85,7 +85,7 @@ func NewApp(
 	processor, err := NewEventProcessor(router, redisClient, marshaler, watermillLogger)
 	processor.AddHandlers(
 		events.TicketsToPrintHandler(spreadsheetsClient),
-		events.PrepareTicketsHandler(filesClient),
+		events.PrepareTicketsHandler(filesClient, eventBus),
 		events.IssueReceiptHandler(receiptsClient),
 		events.StoreTicketsHandler(repo),
 
