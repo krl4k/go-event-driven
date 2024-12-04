@@ -12,25 +12,29 @@ import (
 type Server struct {
 	e *echo.Echo
 
-	ticketsService *services.TicketService
-	showsService   *services.ShowsService
+	ticketsService  *services.TicketService
+	showsService    *services.ShowsService
+	bookingsService *services.BookingService
 }
 
 func NewServer(
 	e *echo.Echo,
 	ticketService *services.TicketService,
 	showsService *services.ShowsService,
+	bookingsService *services.BookingService,
 	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{
-		e:              e,
-		ticketsService: ticketService,
-		showsService:   showsService,
+		e:               e,
+		ticketsService:  ticketService,
+		showsService:    showsService,
+		bookingsService: bookingsService,
 	}
 	e.POST("/tickets-status", srv.TicketsStatusHandler)
 	e.GET("/tickets", srv.GetTicketsHandler)
 
 	e.POST("/shows", srv.CreateShowHandler)
+	e.POST("/book-tickets", srv.BookTicketsHandler)
 
 	e.GET("/health", func(c echo.Context) error {
 		if !routerIsRunning() {

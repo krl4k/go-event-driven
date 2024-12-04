@@ -30,5 +30,22 @@ CREATE TABLE IF NOT EXISTS shows (
 	if err != nil {
 		return fmt.Errorf("failed to create shows table: %w", err)
 	}
+
+	_, err = db.ExecContext(context.Background(), `
+	
+CREATE TABLE IF NOT EXISTS bookings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    show_id UUID NOT NULL,
+	number_of_tickets INTEGER NOT NULL,
+    customer_email VARCHAR(255) NOT NULL,
+    CONSTRAINT fk_show 
+        FOREIGN KEY (show_id) 
+        REFERENCES shows(id)
+        ON DELETE RESTRICT
+);`)
+	if err != nil {
+		return fmt.Errorf("failed to create bookings table: %w", err)
+	}
+
 	return nil
 }

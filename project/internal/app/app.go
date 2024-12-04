@@ -42,6 +42,7 @@ func NewApp(
 ) (*App, error) {
 	ticketsRepo := repository.NewTicketsRepo(db)
 	showsRepo := repository.NewShowsRepo(db)
+	bookingsRepo := repository.NewBookingsRepo(db)
 
 	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
 	if err != nil {
@@ -63,11 +64,14 @@ func NewApp(
 
 	ticketsService := services.NewTicketConfirmationService(eventBus, ticketsRepo)
 	showsService := services.NewShowsService(showsRepo)
+	bookingsService := services.NewBookingService(bookingsRepo)
+
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(
 		e,
 		ticketsService,
 		showsService,
+		bookingsService,
 		router.IsRunning,
 	)
 
