@@ -21,7 +21,8 @@ func NewReceiptsClient(clients *clients.Clients) ReceiptsClient {
 
 func (c ReceiptsClient) IssueReceipt(ctx context.Context, request domain.IssueReceiptRequest) (*domain.IssueReceiptResponse, error) {
 	body := receipts.PutReceiptsJSONRequestBody{
-		TicketId: request.TicketID,
+		IdempotencyKey: &request.IdempotencyKey,
+		TicketId:       request.TicketID,
 		Price: receipts.Money{
 			MoneyAmount:   request.Price.Amount,
 			MoneyCurrency: request.Price.Currency,

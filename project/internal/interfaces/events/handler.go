@@ -92,7 +92,7 @@ func PrepareTicketsHandler(
 			return eb.Publish(
 				ctx,
 				domain.TicketPrinted{
-					Header: domain.Header{
+					Header: domain.EventHeader{
 						Id:          uuid.NewString(),
 						PublishedAt: time.Now().Format(time.RFC3339),
 					},
@@ -117,8 +117,9 @@ func IssueReceiptHandler(
 			_, err := receiptsClient.IssueReceipt(
 				ctx,
 				domain.IssueReceiptRequest{
-					TicketID: payload.TicketId,
-					Price:    payload.Price,
+					IdempotencyKey: payload.Header.IdempotencyKey,
+					TicketID:       payload.TicketId,
+					Price:          payload.Price,
 				})
 			return err
 		},

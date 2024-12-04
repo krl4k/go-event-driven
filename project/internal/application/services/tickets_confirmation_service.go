@@ -3,9 +3,8 @@ package services
 import (
 	"context"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
-	"github.com/google/uuid"
 	domain "tickets/internal/domain/tickets"
-	"time"
+	"tickets/internal/idempotency"
 )
 
 type TicketsRepository interface {
@@ -27,14 +26,16 @@ func NewTicketConfirmationService(
 	}
 }
 
-func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Ticket) {
+func (s *TicketService) ProcessTickets(
+	ctx context.Context,
+	tickets []domain.Ticket,
+) {
 	for _, ticket := range tickets {
 		if ticket.Status == "confirmed" {
 			s.eb.Publish(ctx, domain.TicketBookingConfirmed{
-				Header: domain.Header{
-					Id:          uuid.NewString(),
-					PublishedAt: time.Now().Format(time.RFC3339),
-				},
+				Header: domain.NewEventHeaderWithIdempotencyKey(
+					idempotency.GetKey(ctx) + ticket.TicketId,
+				),
 				TicketId:      ticket.TicketId,
 				CustomerEmail: ticket.CustomerEmail,
 				Price: domain.Money{
@@ -44,10 +45,9 @@ func (s *TicketService) ProcessTickets(ctx context.Context, tickets []domain.Tic
 			})
 		} else {
 			s.eb.Publish(ctx, domain.TicketBookingCanceled{
-				Header: domain.Header{
-					Id:          uuid.NewString(),
-					PublishedAt: time.Now().Format(time.RFC3339),
-				},
+				Header: domain.NewEventHeaderWithIdempotencyKey(
+					idempotency.GetKey(ctx) + ticket.TicketId,
+				),
 				TicketId:      ticket.TicketId,
 				CustomerEmail: ticket.CustomerEmail,
 				Price: domain.Money{
