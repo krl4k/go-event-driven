@@ -146,7 +146,9 @@ type TicketsStatusRequest struct {
 	Tickets []Ticket `json:"tickets"`
 }
 
-func sendTicketsStatus(t *testing.T, req TicketsStatusRequest) {
+func sendTicketsStatus(t *testing.T,
+	idempotencyKey string,
+	req TicketsStatusRequest) {
 	t.Helper()
 
 	payload, err := json.Marshal(req)
@@ -167,6 +169,7 @@ func sendTicketsStatus(t *testing.T, req TicketsStatusRequest) {
 	require.NoError(t, err)
 
 	httpReq.Header.Set("Correlation-ID", correlationID)
+	httpReq.Header.Set("Idempotency-Key", idempotencyKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(httpReq)
@@ -176,6 +179,7 @@ func sendTicketsStatus(t *testing.T, req TicketsStatusRequest) {
 
 func (suite *ComponentTestSuite) TestConfirmedTickets() {
 	// Test data
+	idempotencyKey := uuid.NewString()
 	ticketID := uuid.NewString()
 	customerEmail := "test1@example.com"
 	status := "confirmed"
@@ -200,8 +204,9 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 
 	suite.receiptsMock.EXPECT().
 		IssueReceipt(gomock.Any(), domain.IssueReceiptRequest{
-			TicketID: ticketID,
-			Price:    domain.Money{Amount: amount, Currency: currency},
+			IdempotencyKey: idempotencyKey + ticketID,
+			TicketID:       ticketID,
+			Price:          domain.Money{Amount: amount, Currency: currency},
 		}).
 		Return(nil, nil).
 		Times(1).
@@ -237,7 +242,7 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 		})
 
 	// Perform request
-	sendTicketsStatus(suite.T(), testRequest)
+	sendTicketsStatus(suite.T(), idempotencyKey, testRequest)
 
 	require.Eventually(
 		suite.T(),
@@ -245,6 +250,87 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 			return receiptsCallCount.Load() == 1 &&
 				spreadsheetsCallCount.Load() == 1 &&
 				filesCallCount.Load() == 1
+		},
+		5*time.Second,
+		100*time.Millisecond,
+		"All mocks should have been called",
+	)
+}
+
+func (suite *ComponentTestSuite) TestIdempotencyConfirmedTickets() {
+	// Test data
+	idempotencyKey := uuid.NewString()
+	ticketID := uuid.NewString()
+	customerEmail := "test1@example.com"
+	status := "confirmed"
+	amount := "100.00"
+	currency := "USD"
+	testRequest := TicketsStatusRequest{
+		Tickets: []Ticket{
+			{
+				TicketID:      ticketID,
+				Status:        status,
+				CustomerEmail: customerEmail,
+				Price: Price{
+					Amount:   amount,
+					Currency: currency,
+				},
+			},
+		},
+	}
+	var receiptsCallCount atomic.Int32
+	var spreadsheetsCallCount atomic.Int32
+	var filesCallCount atomic.Int32
+
+	suite.receiptsMock.EXPECT().
+		IssueReceipt(gomock.Any(), domain.IssueReceiptRequest{
+			IdempotencyKey: idempotencyKey + ticketID,
+			TicketID:       ticketID,
+			Price:          domain.Money{Amount: amount, Currency: currency},
+		}).
+		Return(nil, nil).
+		Times(2).
+		Do(func(context.Context, domain.IssueReceiptRequest) {
+			receiptsCallCount.Add(1)
+		})
+
+	suite.spreadsheetsMock.EXPECT().
+		AppendRow(gomock.Any(), domain.AppendToTrackerRequest{
+			SpreadsheetName: "tickets-to-print",
+			Rows: []string{
+				ticketID,
+				customerEmail,
+				amount,
+				currency,
+			},
+		}).
+		Return(nil).
+		Times(2).
+		Do(func(context.Context, domain.AppendToTrackerRequest) {
+			spreadsheetsCallCount.Add(1)
+		})
+
+	suite.filesMock.EXPECT().Upload(
+		gomock.Any(),
+		fmt.Sprintf("%s-ticket.html", ticketID),
+		gomock.Any(),
+	).
+		Return(nil).
+		Times(2).
+		Do(func(_ context.Context, fileID string, _ []byte) {
+			filesCallCount.Add(1)
+		})
+
+	// Perform request
+	sendTicketsStatus(suite.T(), idempotencyKey, testRequest)
+	sendTicketsStatus(suite.T(), idempotencyKey, testRequest)
+
+	require.Eventually(
+		suite.T(),
+		func() bool {
+			return receiptsCallCount.Load() == 2 &&
+				spreadsheetsCallCount.Load() == 2 &&
+				filesCallCount.Load() == 2
 		},
 		5*time.Second,
 		100*time.Millisecond,
@@ -291,7 +377,7 @@ func (suite *ComponentTestSuite) TestCancelledTickets() {
 		})
 
 	// Perform request
-	sendTicketsStatus(suite.T(), testRequest)
+	sendTicketsStatus(suite.T(), uuid.NewString(), testRequest)
 
 	require.Eventually(
 		suite.T(),

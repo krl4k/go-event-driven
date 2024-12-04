@@ -33,7 +33,7 @@ func (s *Server) TicketsStatusHandler(c echo.Context) error {
 
 	idempotencyKey := c.Request().Header.Get("Idempotency-Key")
 	if idempotencyKey == "" {
-		return c.String(http.StatusBadRequest, "Idenpotency-Key is required")
+		return c.String(http.StatusBadRequest, "Idempotency-Key is required")
 	}
 
 	ctx = idempotency.WithKey(ctx, idempotencyKey)
