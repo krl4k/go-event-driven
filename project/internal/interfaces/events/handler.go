@@ -50,33 +50,6 @@ func TicketsToPrintHandler(
 	)
 }
 
-func RefundTicketHandler(
-	spreadsheetsClient SpreadsheetsService,
-) cqrs.EventHandler {
-	return cqrs.NewEventHandler(
-		"refund_ticket_handler",
-		func(ctx context.Context, payload *domain.TicketBookingCanceled) error {
-			log.FromContext(ctx).Info("Refunding ticket")
-
-			if payload.Price.Currency == "" {
-				payload.Price.Currency = "USD"
-			}
-			return spreadsheetsClient.AppendRow(
-				ctx,
-				domain.AppendToTrackerRequest{
-					SpreadsheetName: "tickets-to-refund",
-					Rows: []string{
-						payload.TicketId,
-						payload.CustomerEmail,
-						payload.Price.Amount,
-						payload.Price.Currency,
-					},
-				},
-			)
-		},
-	)
-}
-
 func IssueReceiptHandler(
 	receiptsClient ReceiptsService,
 ) cqrs.EventHandler {
@@ -113,6 +86,33 @@ func StoreTicketsHandler(
 				CustomerEmail: payload.CustomerEmail,
 				Price:         payload.Price,
 			})
+		},
+	)
+}
+
+func RefundTicketHandler(
+	spreadsheetsClient SpreadsheetsService,
+) cqrs.EventHandler {
+	return cqrs.NewEventHandler(
+		"refund_ticket_handler",
+		func(ctx context.Context, payload *domain.TicketBookingCanceled) error {
+			log.FromContext(ctx).Info("Refunding ticket")
+
+			if payload.Price.Currency == "" {
+				payload.Price.Currency = "USD"
+			}
+			return spreadsheetsClient.AppendRow(
+				ctx,
+				domain.AppendToTrackerRequest{
+					SpreadsheetName: "tickets-to-refund",
+					Rows: []string{
+						payload.TicketId,
+						payload.CustomerEmail,
+						payload.Price.Amount,
+						payload.Price.Currency,
+					},
+				},
+			)
 		},
 	)
 }

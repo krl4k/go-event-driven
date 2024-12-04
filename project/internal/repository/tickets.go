@@ -25,14 +25,13 @@ func NewTicketsRepo(db *sqlx.DB) *TicketsRepo {
 	return &TicketsRepo{db: db}
 }
 
-// Create inserts a new ticket record
 func (r *TicketsRepo) Create(ctx context.Context, t *domain.Ticket) error {
 	query := `
         INSERT INTO tickets (
             ticket_id, price_amount, price_currency, customer_email
         ) VALUES (
             $1, $2, $3, $4
-        )`
+        ) ON CONFLICT DO NOTHING`
 
 	ticket, err := domainToModel(t)
 	if err != nil {
@@ -46,25 +45,6 @@ func (r *TicketsRepo) Create(ctx context.Context, t *domain.Ticket) error {
 		ticket.CustomerEmail,
 	)
 	return err
-}
-
-func domainToModel(ticket *domain.Ticket) (*Ticket, error) {
-	id, err := uuid.Parse(ticket.TicketId)
-	if err != nil {
-		return nil, err
-	}
-
-	amount, err := strconv.ParseFloat(ticket.Price.Amount, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Ticket{
-		ID:            id,
-		PriceAmount:   amount,
-		PriceCurrency: ticket.Price.Currency,
-		CustomerEmail: ticket.CustomerEmail,
-	}, nil
 }
 
 func (r *TicketsRepo) Delete(ctx context.Context, ticketID uuid.UUID) error {
@@ -101,4 +81,23 @@ func modelToDomain(ticket Ticket) domain.Ticket {
 			Currency: ticket.PriceCurrency,
 		},
 	}
+}
+
+func domainToModel(ticket *domain.Ticket) (*Ticket, error) {
+	id, err := uuid.Parse(ticket.TicketId)
+	if err != nil {
+		return nil, err
+	}
+
+	amount, err := strconv.ParseFloat(ticket.Price.Amount, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Ticket{
+		ID:            id,
+		PriceAmount:   amount,
+		PriceCurrency: ticket.Price.Currency,
+		CustomerEmail: ticket.CustomerEmail,
+	}, nil
 }
