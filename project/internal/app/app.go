@@ -40,7 +40,8 @@ func NewApp(
 	redisClient *redis.Client,
 	db *sqlx.DB,
 ) (*App, error) {
-	repo := repository.NewTicketsRepo(db)
+	ticketsRepo := repository.NewTicketsRepo(db)
+	showsRepo := repository.NewShowsRepo(db)
 
 	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
 	if err != nil {
@@ -60,9 +61,15 @@ func NewApp(
 	}
 	eventBus, err := NewEventBus(publisher, watermillLogger)
 
-	ticketConfirmationService := services.NewTicketConfirmationService(eventBus, repo)
+	ticketsService := services.NewTicketConfirmationService(eventBus, ticketsRepo)
+	showsService := services.NewShowsService(showsRepo)
 	e := commonHTTP.NewEcho()
-	srv := http.NewServer(e, ticketConfirmationService, router.IsRunning)
+	srv := http.NewServer(
+		e,
+		ticketsService,
+		showsService,
+		router.IsRunning,
+	)
 
 	router.AddMiddleware(middleware.Recoverer)
 	router.AddMiddleware(events.CorrelationIDMiddleware)
@@ -87,10 +94,10 @@ func NewApp(
 		events.TicketsToPrintHandler(spreadsheetsClient),
 		events.PrepareTicketsHandler(filesClient, eventBus),
 		events.IssueReceiptHandler(receiptsClient),
-		events.StoreTicketsHandler(repo),
+		events.StoreTicketsHandler(ticketsRepo),
 
 		events.RefundTicketHandler(spreadsheetsClient),
-		events.RemoveTicketsHandler(repo),
+		events.RemoveTicketsHandler(ticketsRepo),
 	)
 
 	return &App{

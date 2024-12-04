@@ -13,19 +13,25 @@ type Server struct {
 	e *echo.Echo
 
 	ticketsService *services.TicketService
+	showsService   *services.ShowsService
 }
 
 func NewServer(
 	e *echo.Echo,
-	ticketConfirmationService *services.TicketService,
+	ticketService *services.TicketService,
+	showsService *services.ShowsService,
 	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{
 		e:              e,
-		ticketsService: ticketConfirmationService,
+		ticketsService: ticketService,
+		showsService:   showsService,
 	}
 	e.POST("/tickets-status", srv.TicketsStatusHandler)
 	e.GET("/tickets", srv.GetTicketsHandler)
+
+	e.POST("/shows", srv.CreateShowHandler)
+
 	e.GET("/health", func(c echo.Context) error {
 		if !routerIsRunning() {
 			return c.String(http.StatusServiceUnavailable, "router is not running")
