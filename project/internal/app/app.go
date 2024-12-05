@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
 	_ "github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
@@ -9,6 +10,8 @@ import (
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
+	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
+	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -17,6 +20,7 @@ import (
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
+	"tickets/internal/outbox"
 	"tickets/internal/repository"
 	"time"
 
@@ -30,6 +34,7 @@ type App struct {
 	router          *message.Router
 	srv             *http.Server
 	db              *sqlx.DB
+	forwarder       *outbox.Forwarder
 }
 
 func NewApp(
@@ -42,7 +47,9 @@ func NewApp(
 ) (*App, error) {
 	ticketsRepo := repository.NewTicketsRepo(db)
 	showsRepo := repository.NewShowsRepo(db)
-	bookingsRepo := repository.NewBookingsRepo(db)
+	bookingsRepo := repository.NewBookingsRepo(db, trmsqlx.DefaultCtxGetter)
+
+	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
 
 	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
 	if err != nil {
@@ -60,11 +67,16 @@ func NewApp(
 	publisher = event_publisher.CorrelationPublisherDecorator{
 		Publisher: publisher,
 	}
-	eventBus, err := NewEventBus(publisher, watermillLogger)
+	eventBus, err := events.NewEventBus(publisher, watermillLogger)
 
 	ticketsService := services.NewTicketConfirmationService(eventBus, ticketsRepo)
 	showsService := services.NewShowsService(showsRepo)
-	bookingsService := services.NewBookingService(bookingsRepo)
+	bookingsService := services.NewBookingService(
+		bookingsRepo,
+		trManager,
+		trmsqlx.DefaultCtxGetter,
+		watermillLogger,
+	)
 
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(
@@ -93,7 +105,7 @@ func NewApp(
 	marshaler := cqrs.JSONMarshaler{
 		GenerateName: cqrs.StructName,
 	}
-	processor, err := NewEventProcessor(router, redisClient, marshaler, watermillLogger)
+	processor, err := events.NewEventProcessor(router, redisClient, marshaler, watermillLogger)
 	processor.AddHandlers(
 		events.TicketsToPrintHandler(spreadsheetsClient),
 		events.PrepareTicketsHandler(filesClient, eventBus),
@@ -104,12 +116,22 @@ func NewApp(
 		events.RemoveTicketsHandler(ticketsRepo),
 	)
 
+	forwarder, err := outbox.NewForwarder(
+		db,
+		redisClient,
+		watermillLogger,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create forwarder: %w", err)
+	}
+
 	return &App{
 		watermillLogger: watermillLogger,
 		logger:          zerolog.New(os.Stdout),
 		router:          router,
 		srv:             srv,
 		db:              db,
+		forwarder:       forwarder,
 	}, nil
 }
 
@@ -135,6 +157,14 @@ func (a *App) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
+		a.logger.Info().Msg("starting outbox forwarder")
+		a.forwarder.RunForwarder(ctx)
+
+		a.logger.Info().Msg("forwarder is running")
+		return nil
+	})
+
+	g.Go(func() error {
 		// Shut down
 		<-ctx.Done()
 
@@ -152,46 +182,4 @@ func (a *App) Run(ctx context.Context) error {
 		panic(err)
 	}
 	return nil
-}
-
-func NewEventBus(
-	pub message.Publisher,
-	logger watermill.LoggerAdapter,
-) (*cqrs.EventBus, error) {
-	return cqrs.NewEventBusWithConfig(
-		pub,
-		cqrs.EventBusConfig{
-			GeneratePublishTopic: func(params cqrs.GenerateEventPublishTopicParams) (string, error) {
-				return params.EventName, nil
-			},
-			Marshaler: cqrs.JSONMarshaler{
-				GenerateName: cqrs.StructName,
-			},
-			Logger: logger,
-		},
-	)
-}
-
-func NewEventProcessor(
-	router *message.Router,
-	rdb *redis.Client,
-	marshaler cqrs.CommandEventMarshaler,
-	logger watermill.LoggerAdapter,
-) (*cqrs.EventProcessor, error) {
-	return cqrs.NewEventProcessorWithConfig(
-		router,
-		cqrs.EventProcessorConfig{
-			GenerateSubscribeTopic: func(params cqrs.EventProcessorGenerateSubscribeTopicParams) (string, error) {
-				return params.EventName, nil
-			},
-			SubscriberConstructor: func(params cqrs.EventProcessorSubscriberConstructorParams) (message.Subscriber, error) {
-				return redisstream.NewSubscriber(redisstream.SubscriberConfig{
-					Client:        rdb,
-					ConsumerGroup: "svc-tickets." + params.HandlerName,
-				}, logger)
-			},
-			Marshaler: marshaler,
-			Logger:    logger,
-		},
-	)
 }
