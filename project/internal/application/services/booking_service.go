@@ -66,7 +66,7 @@ func (s *BookingService) BookTickets(ctx context.Context, booking domain.Booking
 		}
 
 		return eb.Publish(ctx, domain.BookingMade{
-			BookingID:       id.String(),
+			BookingID:       id,
 			NumberOfTickets: booking.NumberOfTickets,
 			CustomerEmail:   booking.CustomerEmail,
 			ShowID:          booking.ShowId,

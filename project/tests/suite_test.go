@@ -23,6 +23,7 @@ type ComponentTestSuite struct {
 	spreadsheetsMock *mocks.MockSpreadsheetsService
 	receiptsMock     *mocks.MockReceiptsService
 	filesMock        *mocks.MockFileStorageService
+	deadNationMock   *mocks.MockDeadNationService
 	ctx              context.Context
 	//redisContainer   testcontainers.Container
 	redisClient *redis.Client
@@ -41,6 +42,8 @@ func (suite *ComponentTestSuite) SetupSuite() {
 	suite.spreadsheetsMock = mocks.NewMockSpreadsheetsService(suite.ctrl)
 	suite.receiptsMock = mocks.NewMockReceiptsService(suite.ctrl)
 	suite.filesMock = mocks.NewMockFileStorageService(suite.ctrl)
+	suite.deadNationMock = mocks.NewMockDeadNationService(suite.ctrl)
+
 	suite.ctx = context.Background()
 	suite.httpClient = &http.Client{Timeout: 5 * time.Second}
 	var err error
@@ -79,6 +82,7 @@ func (suite *ComponentTestSuite) SetupSuite() {
 		suite.spreadsheetsMock,
 		suite.receiptsMock,
 		suite.filesMock,
+		suite.deadNationMock,
 		suite.redisClient,
 		suite.db,
 	)

@@ -42,6 +42,7 @@ func NewApp(
 	spreadsheetsClient events.SpreadsheetsService,
 	receiptsClient events.ReceiptsService,
 	filesClient events.FileStorageService,
+	deadNationClient events.DeadNationService,
 	redisClient *redis.Client,
 	db *sqlx.DB,
 ) (*App, error) {
@@ -106,14 +107,30 @@ func NewApp(
 		GenerateName: cqrs.StructName,
 	}
 	processor, err := events.NewEventProcessor(router, redisClient, marshaler, watermillLogger)
-	processor.AddHandlers(
-		events.TicketsToPrintHandler(spreadsheetsClient),
-		events.PrepareTicketsHandler(filesClient, eventBus),
-		events.IssueReceiptHandler(receiptsClient),
-		events.StoreTicketsHandler(ticketsRepo),
 
-		events.RefundTicketHandler(spreadsheetsClient),
-		events.RemoveTicketsHandler(ticketsRepo),
+	eventHandler := events.NewHandler(
+		eventBus,
+		spreadsheetsClient,
+		receiptsClient,
+		filesClient,
+		deadNationClient,
+		ticketsRepo,
+		showsRepo,
+	)
+
+	processor.AddHandlers(
+		// TicketBookingConfirmed handlers
+		eventHandler.TicketsToPrintHandler(),
+		eventHandler.PrepareTicketsHandler(),
+		eventHandler.IssueReceiptHandler(),
+		eventHandler.StoreTicketsHandler(),
+
+		// TicketBookingCancelled handlers
+		eventHandler.RefundTicketHandler(),
+		eventHandler.RemoveTicketsHandler(),
+
+		// BookingMade handlers
+		eventHandler.TicketBookingHandler(),
 	)
 
 	forwarder, err := outbox.NewForwarder(

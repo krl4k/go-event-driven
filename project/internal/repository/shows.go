@@ -41,3 +41,22 @@ func (r *ShowsRepo) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID
 
 	return id, nil
 }
+
+func (r *ShowsRepo) GetShow(ctx context.Context, id uuid.UUID) (domain.Show, error) {
+	var show domain.Show
+
+	query := `
+	   SELECT
+		  id, dead_nation_id, number_of_tickets, start_time, title, venue
+	   FROM shows
+	   WHERE id = $1`
+
+	err := r.db.QueryRowContext(ctx, query, id).
+		Scan(&show.Id, &show.DeadNationId, &show.NumberOfTickets, &show.StartTime, &show.Title, &show.Venue)
+
+	if err != nil {
+		return domain.Show{}, fmt.Errorf("failed to get show: %w", err)
+	}
+
+	return show, nil
+}

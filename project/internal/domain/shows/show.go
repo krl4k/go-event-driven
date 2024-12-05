@@ -7,7 +7,7 @@ import (
 
 type Show struct {
 	Id              uuid.UUID `json:"show_id"`
-	DeadNationId    string    `json:"dead_nation_id"`
+	DeadNationId    uuid.UUID `json:"dead_nation_id"`
 	NumberOfTickets int       `json:"number_of_tickets"`
 	StartTime       time.Time `json:"start_time"`
 	Title           string    `json:"title"`

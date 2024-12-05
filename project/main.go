@@ -35,6 +35,7 @@ func main() {
 	receiptsClient := clients.NewReceiptsClient(commonClients)
 	spreadsheetsClient := clients.NewSpreadsheetsClient(commonClients)
 	filesClient := clients.NewFilesClient(commonClients)
+	deadNationClient := clients.NewDeadNationClient(commonClients)
 
 	db, err := sqlx.Open("postgres", os.Getenv("POSTGRES_URL"))
 	if err != nil {
@@ -42,7 +43,15 @@ func main() {
 	}
 	defer db.Close()
 
-	a, err := app.NewApp(wlogger, spreadsheetsClient, receiptsClient, filesClient, rdb, db)
+	a, err := app.NewApp(
+		wlogger,
+		spreadsheetsClient,
+		receiptsClient,
+		filesClient,
+		deadNationClient,
+		rdb,
+		db,
+	)
 	if err != nil {
 		panic(err)
 	}

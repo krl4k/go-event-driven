@@ -55,6 +55,7 @@ func LoggingMiddleware(next message.HandlerFunc) message.HandlerFunc {
 
 		if err != nil {
 			log.FromContext(message.Context()).
+				WithField("payload", string(message.Payload)).
 				WithField("error", err).
 				Error("Message handling error")
 		}
