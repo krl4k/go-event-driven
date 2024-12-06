@@ -1,4 +1,4 @@
-package services
+package tickets
 
 import (
 	"context"
@@ -11,7 +11,7 @@ type TicketsRepository interface {
 	List(ctx context.Context) ([]domain.Ticket, error)
 }
 
-type TicketService struct {
+type ProcessTicketsUsecase struct {
 	eb          *cqrs.EventBus
 	ticketsRepo TicketsRepository
 }
@@ -19,14 +19,14 @@ type TicketService struct {
 func NewTicketConfirmationService(
 	eb *cqrs.EventBus,
 	ticketsRepo TicketsRepository,
-) *TicketService {
-	return &TicketService{
+) *ProcessTicketsUsecase {
+	return &ProcessTicketsUsecase{
 		eb:          eb,
 		ticketsRepo: ticketsRepo,
 	}
 }
 
-func (s *TicketService) ProcessTickets(
+func (s *ProcessTicketsUsecase) ProcessTickets(
 	ctx context.Context,
 	tickets []domain.Ticket,
 ) {
@@ -59,7 +59,7 @@ func (s *TicketService) ProcessTickets(
 	}
 }
 
-func (s *TicketService) GetTickets(ctx context.Context) ([]domain.Ticket, error) {
+func (s *ProcessTicketsUsecase) GetTickets(ctx context.Context) ([]domain.Ticket, error) {
 	tickets, err := s.ticketsRepo.List(ctx)
 
 	return tickets, err

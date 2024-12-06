@@ -37,7 +37,7 @@ type TicketsRepository interface {
 
 //go:generate mockgen -destination=mocks/shows_repository_mock.go -package=mocks . ShowsRepository
 type ShowsRepository interface {
-	GetShow(ctx context.Context, id uuid.UUID) (sdomain.Show, error)
+	GetShow(ctx context.Context, id uuid.UUID) (*sdomain.Show, error)
 }
 
 type Handler struct {

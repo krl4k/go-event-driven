@@ -16,7 +16,9 @@ import (
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"os"
-	"tickets/internal/application/services"
+	"tickets/internal/application/usecases/booking"
+	"tickets/internal/application/usecases/shows"
+	"tickets/internal/application/usecases/tickets"
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
@@ -47,7 +49,7 @@ func NewApp(
 	db *sqlx.DB,
 ) (*App, error) {
 	ticketsRepo := repository.NewTicketsRepo(db)
-	showsRepo := repository.NewShowsRepo(db)
+	showsRepo := repository.NewShowsRepo(db, trmsqlx.DefaultCtxGetter)
 	bookingsRepo := repository.NewBookingsRepo(db, trmsqlx.DefaultCtxGetter)
 
 	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
@@ -70,10 +72,11 @@ func NewApp(
 	}
 	eventBus, err := events.NewEventBus(publisher, watermillLogger)
 
-	ticketsService := services.NewTicketConfirmationService(eventBus, ticketsRepo)
-	showsService := services.NewShowsService(showsRepo)
-	bookingsService := services.NewBookingService(
+	ticketsService := tickets.NewTicketConfirmationService(eventBus, ticketsRepo)
+	showsService := shows.NewShowsService(showsRepo)
+	bookingsService := booking.NewBookTicketsUsecase(
 		bookingsRepo,
+		showsRepo,
 		trManager,
 		trmsqlx.DefaultCtxGetter,
 		watermillLogger,

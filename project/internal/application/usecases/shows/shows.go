@@ -1,4 +1,4 @@
-package services
+package shows
 
 import (
 	"context"
@@ -11,16 +11,16 @@ type ShowsRepo interface {
 	CreateShow(ctx context.Context, show domain.Show) (uuid.UUID, error)
 }
 
-type ShowsService struct {
+type CreateShowUsecase struct {
 	showsRepo ShowsRepo
 }
 
-func NewShowsService(showsRepo ShowsRepo) *ShowsService {
-	return &ShowsService{
+func NewShowsService(showsRepo ShowsRepo) *CreateShowUsecase {
+	return &CreateShowUsecase{
 		showsRepo: showsRepo,
 	}
 }
 
-func (s *ShowsService) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID, error) {
+func (s *CreateShowUsecase) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID, error) {
 	return s.showsRepo.CreateShow(ctx, show)
 }

@@ -3,17 +3,25 @@ package repository
 import (
 	"context"
 	"fmt"
+	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	domain "tickets/internal/domain/shows"
 )
 
 type ShowsRepo struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	getter *trmsqlx.CtxGetter
 }
 
-func NewShowsRepo(db *sqlx.DB) *ShowsRepo {
-	return &ShowsRepo{db: db}
+func NewShowsRepo(
+	db *sqlx.DB,
+	getter *trmsqlx.CtxGetter,
+) *ShowsRepo {
+	return &ShowsRepo{
+		db:     db,
+		getter: getter,
+	}
 }
 
 func (r *ShowsRepo) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID, error) {
@@ -27,7 +35,7 @@ func (r *ShowsRepo) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID
        ) ON CONFLICT DO NOTHING
        RETURNING id`
 
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.getter.DefaultTrOrDB(ctx, r.db).QueryRowContext(ctx, query,
 		show.DeadNationId,
 		show.NumberOfTickets,
 		show.StartTime,
@@ -42,7 +50,7 @@ func (r *ShowsRepo) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID
 	return id, nil
 }
 
-func (r *ShowsRepo) GetShow(ctx context.Context, id uuid.UUID) (domain.Show, error) {
+func (r *ShowsRepo) GetShow(ctx context.Context, id uuid.UUID) (*domain.Show, error) {
 	var show domain.Show
 
 	query := `
@@ -51,12 +59,12 @@ func (r *ShowsRepo) GetShow(ctx context.Context, id uuid.UUID) (domain.Show, err
 	   FROM shows
 	   WHERE id = $1`
 
-	err := r.db.QueryRowContext(ctx, query, id).
+	err := r.getter.DefaultTrOrDB(ctx, r.db).QueryRowContext(ctx, query, id).
 		Scan(&show.Id, &show.DeadNationId, &show.NumberOfTickets, &show.StartTime, &show.Title, &show.Venue)
 
 	if err != nil {
-		return domain.Show{}, fmt.Errorf("failed to get show: %w", err)
+		return nil, fmt.Errorf("failed to get show: %w", err)
 	}
 
-	return show, nil
+	return &show, nil
 }

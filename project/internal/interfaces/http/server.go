@@ -6,22 +6,24 @@ import (
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/labstack/echo/v4"
 	"net/http"
-	"tickets/internal/application/services"
+	"tickets/internal/application/usecases/booking"
+	"tickets/internal/application/usecases/shows"
+	"tickets/internal/application/usecases/tickets"
 )
 
 type Server struct {
 	e *echo.Echo
 
-	ticketsService  *services.TicketService
-	showsService    *services.ShowsService
-	bookingsService *services.BookingService
+	ticketsService  *tickets.ProcessTicketsUsecase
+	showsService    *shows.CreateShowUsecase
+	bookingsService *booking.BookTicketsUsecase
 }
 
 func NewServer(
 	e *echo.Echo,
-	ticketService *services.TicketService,
-	showsService *services.ShowsService,
-	bookingsService *services.BookingService,
+	ticketService *tickets.ProcessTicketsUsecase,
+	showsService *shows.CreateShowUsecase,
+	bookingsService *booking.BookTicketsUsecase,
 	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{

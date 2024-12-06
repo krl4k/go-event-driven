@@ -3,10 +3,12 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -81,4 +83,155 @@ func (suite *ComponentTestSuite) TestBookTickets() {
 	assert.Equal(suite.T(), showID, booking.ShowID)
 	assert.Equal(suite.T(), 3, booking.NumberOfTickets)
 	assert.Equal(suite.T(), "email@example.com", booking.CustomerEmail)
+}
+
+func (suite *ComponentTestSuite) TestBookTicketsOverbooking() {
+	showID := uuid.New()
+	_, err := suite.db.ExecContext(suite.ctx, `
+       INSERT INTO shows (
+           id, 
+           dead_nation_id,
+           number_of_tickets,
+           start_time,
+           title,
+           venue
+       ) VALUES (
+           $1, $2, $3, $4, $5, $6
+       )`,
+		showID,
+		uuid.New(),
+		100,
+		time.Now(),
+		"Test Show",
+		"Test Venue",
+	)
+	require.NoError(suite.T(), err)
+
+	request := struct {
+		ShowID          uuid.UUID `json:"show_id"`
+		NumberOfTickets int       `json:"number_of_tickets"`
+		CustomerEmail   string    `json:"customer_email"`
+	}{
+		ShowID:          showID,
+		NumberOfTickets: 101,
+		CustomerEmail:   "email@example.com",
+	}
+
+	payload, err := json.Marshal(request)
+	require.NoError(suite.T(), err)
+
+	httpReq, err := http.NewRequest(
+		http.MethodPost,
+		"http://localhost:8080/book-tickets",
+		bytes.NewBuffer(payload),
+	)
+	require.NoError(suite.T(), err)
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := suite.httpClient.Do(httpReq)
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusBadRequest, resp.StatusCode)
+}
+
+func (suite *ComponentTestSuite) TestBookTicketsConcurrent() {
+	// Создаем шоу с ограниченным количеством билетов
+	showID := uuid.New()
+	totalTickets := 10
+	_, err := suite.db.ExecContext(suite.ctx, `
+        INSERT INTO shows (
+            id, 
+            dead_nation_id,
+            number_of_tickets,
+            start_time,
+            title,
+            venue
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6
+        )`,
+		showID,
+		uuid.New(),
+		totalTickets,
+		time.Now(),
+		"Test Show",
+		"Test Venue",
+	)
+	require.NoError(suite.T(), err)
+
+	// Количество конкурентных запросов
+	numRequests := 5
+	ticketsPerRequest := 3 // 5 * 3 = 15 билетов (больше чем доступно)
+
+	// Канал для сбора результатов
+	results := make(chan int, numRequests)
+
+	// Создаем WaitGroup для синхронизации горутин
+	var wg sync.WaitGroup
+	wg.Add(numRequests)
+
+	// Запускаем конкурентные запросы
+	for i := 0; i < numRequests; i++ {
+		go func(index int) {
+			defer wg.Done()
+
+			request := struct {
+				ShowID          uuid.UUID `json:"show_id"`
+				NumberOfTickets int       `json:"number_of_tickets"`
+				CustomerEmail   string    `json:"customer_email"`
+			}{
+				ShowID:          showID,
+				NumberOfTickets: ticketsPerRequest,
+				CustomerEmail:   fmt.Sprintf("email%d@example.com", index),
+			}
+
+			payload, err := json.Marshal(request)
+			require.NoError(suite.T(), err)
+
+			httpReq, err := http.NewRequest(
+				http.MethodPost,
+				"http://localhost:8080/book-tickets",
+				bytes.NewBuffer(payload),
+			)
+			require.NoError(suite.T(), err)
+			httpReq.Header.Set("Content-Type", "application/json")
+
+			resp, err := suite.httpClient.Do(httpReq)
+			require.NoError(suite.T(), err)
+
+			results <- resp.StatusCode
+		}(i)
+	}
+
+	// Ждем завершения всех запросов
+	wg.Wait()
+	close(results)
+
+	// Подсчитываем успешные и неуспешные бронирования
+	successCount := 0
+	failureCount := 0
+
+	for status := range results {
+		if status == http.StatusCreated {
+			successCount++
+		} else if status == http.StatusBadRequest {
+			failureCount++
+		}
+	}
+
+	fmt.Println("successCount", successCount)
+	fmt.Println("failureCount", failureCount)
+
+	// Проверяем, что общее количество забронированных билетов не превышает доступное
+	var totalBooked int
+	err = suite.db.GetContext(suite.ctx, &totalBooked, `
+        SELECT COALESCE(SUM(number_of_tickets), 0) 
+        FROM bookings 
+        WHERE show_id = $1
+    `, showID)
+	require.NoError(suite.T(), err)
+
+	// Проверяем условия
+	assert.LessOrEqual(suite.T(), totalBooked, totalTickets, "Total booked tickets should not exceed available tickets")
+	assert.True(suite.T(), successCount > 0, "At least one booking should succeed")
+	assert.True(suite.T(), failureCount > 0, "Some bookings should fail due to overbooking")
+	assert.Equal(suite.T(), numRequests, successCount+failureCount, "All requests should either succeed or fail")
 }
