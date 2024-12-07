@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"tickets/internal/application/usecases/booking"
@@ -14,6 +15,7 @@ import (
 type Server struct {
 	e *echo.Echo
 
+	commandBus      *cqrs.CommandBus
 	ticketsService  *tickets.ProcessTicketsUsecase
 	showsService    *shows.CreateShowUsecase
 	bookingsService *booking.BookTicketsUsecase
@@ -21,6 +23,7 @@ type Server struct {
 
 func NewServer(
 	e *echo.Echo,
+	commandBus *cqrs.CommandBus,
 	ticketService *tickets.ProcessTicketsUsecase,
 	showsService *shows.CreateShowUsecase,
 	bookingsService *booking.BookTicketsUsecase,
@@ -28,12 +31,15 @@ func NewServer(
 ) *Server {
 	srv := &Server{
 		e:               e,
+		commandBus:      commandBus,
 		ticketsService:  ticketService,
 		showsService:    showsService,
 		bookingsService: bookingsService,
 	}
 	e.POST("/tickets-status", srv.TicketsStatusHandler)
 	e.GET("/tickets", srv.GetTicketsHandler)
+	// put with query params  /ticket-refund/:ticket_id
+	e.PUT("/ticket-refund/:ticket_id", srv.RefundTicketHandler)
 
 	e.POST("/shows", srv.CreateShowHandler)
 	e.POST("/book-tickets", srv.BookTicketsHandler)

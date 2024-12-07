@@ -20,6 +20,7 @@ import (
 	"tickets/internal/application/usecases/shows"
 	"tickets/internal/application/usecases/tickets"
 	"tickets/internal/infrastructure/event_publisher"
+	"tickets/internal/interfaces/commands"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
 	"tickets/internal/outbox"
@@ -71,6 +72,7 @@ func NewApp(
 		Publisher: publisher,
 	}
 	eventBus, err := events.NewEventBus(publisher, watermillLogger)
+	commandBus, err := commands.NewBus(publisher, watermillLogger)
 
 	ticketsService := tickets.NewTicketConfirmationService(eventBus, ticketsRepo)
 	showsService := shows.NewShowsService(showsRepo)
@@ -85,6 +87,7 @@ func NewApp(
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(
 		e,
+		commandBus,
 		ticketsService,
 		showsService,
 		bookingsService,
@@ -106,11 +109,6 @@ func NewApp(
 	// skip marshalling errors before retrying
 	router.AddMiddleware(events.SkipMarshallingErrorsMiddleware)
 
-	marshaler := cqrs.JSONMarshaler{
-		GenerateName: cqrs.StructName,
-	}
-	processor, err := events.NewEventProcessor(router, redisClient, marshaler, watermillLogger)
-
 	eventHandler := events.NewHandler(
 		eventBus,
 		spreadsheetsClient,
@@ -120,8 +118,12 @@ func NewApp(
 		ticketsRepo,
 		showsRepo,
 	)
+	marshaler := cqrs.JSONMarshaler{
+		GenerateName: cqrs.StructName,
+	}
+	eventProcessor, err := events.NewEventProcessor(router, redisClient, marshaler, watermillLogger)
 
-	processor.AddHandlers(
+	eventProcessor.AddHandlers(
 		// TicketBookingConfirmed handlers
 		eventHandler.TicketsToPrintHandler(),
 		eventHandler.PrepareTicketsHandler(),
@@ -135,6 +137,9 @@ func NewApp(
 		// BookingMade handlers
 		eventHandler.TicketBookingHandler(),
 	)
+
+	//commandsProcessor, err := commands.NewProcessor(router, redisClient, watermillLogger)
+	//commandsProcessor.AddHandlers()
 
 	forwarder, err := outbox.NewForwarder(
 		db,
