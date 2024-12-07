@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"fmt"
+	"github.com/AlekSi/pointer"
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients/receipts"
 	"net/http"
@@ -41,4 +42,21 @@ func (c ReceiptsClient) IssueReceipt(ctx context.Context, request domain.IssueRe
 		ReceiptNumber: receiptsResp.JSON200.Number,
 		IssuedAt:      receiptsResp.JSON200.IssuedAt,
 	}, nil
+}
+
+func (c ReceiptsClient) VoidReceipt(ctx context.Context, ticketID, idempotencyKey string) error {
+	resp, err := c.clients.Receipts.PutVoidReceiptWithResponse(ctx, receipts.VoidReceiptRequest{
+		Reason:       "customer requested refund",
+		TicketId:     ticketID,
+		IdempotentId: pointer.To(idempotencyKey),
+	})
+	if err != nil {
+		return fmt.Errorf("error voiding receipt: %w", err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return fmt.Errorf("error voiding receipt: %s", resp.Status())
+	}
+
+	return nil
 }

@@ -23,7 +23,7 @@ func NewProcessor(
 		router,
 		cqrs.CommandProcessorConfig{
 			GenerateSubscribeTopic: func(params cqrs.CommandProcessorGenerateSubscribeTopicParams) (string, error) {
-				return "commands", nil
+				return "RefundTicket", nil
 			},
 			SubscriberConstructor: func(params cqrs.CommandProcessorSubscriberConstructorParams) (message.Subscriber, error) {
 				return sub, nil

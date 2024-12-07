@@ -36,6 +36,7 @@ func main() {
 	spreadsheetsClient := clients.NewSpreadsheetsClient(commonClients)
 	filesClient := clients.NewFilesClient(commonClients)
 	deadNationClient := clients.NewDeadNationClient(commonClients)
+	paymentsClient := clients.NewPaymentsClient(commonClients)
 
 	db, err := sqlx.Open("postgres", os.Getenv("POSTGRES_URL"))
 	if err != nil {
@@ -49,6 +50,7 @@ func main() {
 		receiptsClient,
 		filesClient,
 		deadNationClient,
+		paymentsClient,
 		rdb,
 		db,
 	)

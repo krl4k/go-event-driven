@@ -13,7 +13,7 @@ import (
 	"os"
 	"testing"
 	"tickets/internal/app"
-	"tickets/internal/interfaces/events/mocks"
+	"tickets/internal/app/mocks"
 	"time"
 )
 
@@ -24,7 +24,9 @@ type ComponentTestSuite struct {
 	receiptsMock     *mocks.MockReceiptsService
 	filesMock        *mocks.MockFileStorageService
 	deadNationMock   *mocks.MockDeadNationService
-	ctx              context.Context
+	paymentsMock     *mocks.MockPaymentsService
+
+	ctx context.Context
 	//redisContainer   testcontainers.Container
 	redisClient *redis.Client
 	db          *sqlx.DB
@@ -36,6 +38,16 @@ func TestComponentTestSuite(t *testing.T) {
 	suite.Run(t, new(ComponentTestSuite))
 }
 
+func (suite *ComponentTestSuite) SetupTest() {
+	// Reset mocks
+	//suite.deadNationMock = mocks.NewMockDeadNationService(suite.ctrl)
+}
+
+func (suite *ComponentTestSuite) TearDownTest() {
+	// Verify all expectations
+	//suite.ctrl.Finish()
+}
+
 func (suite *ComponentTestSuite) SetupSuite() {
 	// Initialize dependencies
 	suite.ctrl = gomock.NewController(suite.T())
@@ -43,6 +55,7 @@ func (suite *ComponentTestSuite) SetupSuite() {
 	suite.receiptsMock = mocks.NewMockReceiptsService(suite.ctrl)
 	suite.filesMock = mocks.NewMockFileStorageService(suite.ctrl)
 	suite.deadNationMock = mocks.NewMockDeadNationService(suite.ctrl)
+	suite.paymentsMock = mocks.NewMockPaymentsService(suite.ctrl)
 
 	suite.ctx = context.Background()
 	suite.httpClient = &http.Client{Timeout: 5 * time.Second}
@@ -83,6 +96,7 @@ func (suite *ComponentTestSuite) SetupSuite() {
 		suite.receiptsMock,
 		suite.filesMock,
 		suite.deadNationMock,
+		suite.paymentsMock,
 		suite.redisClient,
 		suite.db,
 	)
@@ -122,6 +136,5 @@ func waitForHttpServer(t *testing.T) {
 
 func (suite *ComponentTestSuite) TearDownSuite() {
 	// Clean up resources
-	//require.NoError(suite.T(), suite.redisContainer.Terminate(suite.ctx), "Failed to terminate Redis container")
 	suite.ctrl.Finish()
 }

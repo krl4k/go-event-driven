@@ -15,6 +15,7 @@ func (s *Server) RefundTicketHandler(ctx echo.Context) error {
 	}
 
 	err := s.commandBus.Send(ctx.Request().Context(), &domain.RefundTicket{
+		Header:   domain.NewEventHeader(),
 		TicketId: ticketId,
 	})
 	if err != nil {

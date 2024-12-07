@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -43,6 +45,13 @@ func (suite *ComponentTestSuite) TestBookTickets() {
 		NumberOfTickets: 3,
 		CustomerEmail:   "email@example.com",
 	}
+	calls := atomic.Int32{}
+	suite.deadNationMock.EXPECT().BookTickets(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Do(func(arg0, arg1 interface{}) {
+			calls.Add(1)
+		}).
+		Times(1)
 
 	payload, err := json.Marshal(request)
 	require.NoError(suite.T(), err)
@@ -83,6 +92,16 @@ func (suite *ComponentTestSuite) TestBookTickets() {
 	assert.Equal(suite.T(), showID, booking.ShowID)
 	assert.Equal(suite.T(), 3, booking.NumberOfTickets)
 	assert.Equal(suite.T(), "email@example.com", booking.CustomerEmail)
+
+	require.Eventually(
+		suite.T(),
+		func() bool {
+			return calls.Load() == 1
+		},
+		15*time.Second,
+		100*time.Millisecond,
+		"All mocks should have been called",
+	)
 }
 
 func (suite *ComponentTestSuite) TestBookTicketsOverbooking() {
@@ -163,7 +182,13 @@ func (suite *ComponentTestSuite) TestBookTicketsConcurrent() {
 
 	// Канал для сбора результатов
 	results := make(chan int, numRequests)
-
+	calls := atomic.Int32{}
+	suite.deadNationMock.EXPECT().BookTickets(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Do(func(arg0, arg1 interface{}) {
+			calls.Add(1)
+		}).
+		Times(3)
 	// Создаем WaitGroup для синхронизации горутин
 	var wg sync.WaitGroup
 	wg.Add(numRequests)
@@ -234,4 +259,14 @@ func (suite *ComponentTestSuite) TestBookTicketsConcurrent() {
 	assert.True(suite.T(), successCount > 0, "At least one booking should succeed")
 	assert.True(suite.T(), failureCount > 0, "Some bookings should fail due to overbooking")
 	assert.Equal(suite.T(), numRequests, successCount+failureCount, "All requests should either succeed or fail")
+
+	require.Eventually(
+		suite.T(),
+		func() bool {
+			return calls.Load() == 3
+		},
+		15*time.Second,
+		100*time.Millisecond,
+		"All mocks should have been called",
+	)
 }

@@ -42,10 +42,11 @@ type App struct {
 
 func NewApp(
 	watermillLogger watermill.LoggerAdapter,
-	spreadsheetsClient events.SpreadsheetsService,
-	receiptsClient events.ReceiptsService,
-	filesClient events.FileStorageService,
-	deadNationClient events.DeadNationService,
+	spreadsheetsClient SpreadsheetsService,
+	receiptsClient ReceiptsService,
+	filesClient FileStorageService,
+	deadNationClient DeadNationService,
+	paymentsClient PaymentsService,
 	redisClient *redis.Client,
 	db *sqlx.DB,
 ) (*App, error) {
@@ -138,8 +139,11 @@ func NewApp(
 		eventHandler.TicketBookingHandler(),
 	)
 
-	//commandsProcessor, err := commands.NewProcessor(router, redisClient, watermillLogger)
-	//commandsProcessor.AddHandlers()
+	commandHandlers := commands.NewHandler(paymentsClient, receiptsClient)
+	commandsProcessor, err := commands.NewProcessor(router, redisClient, watermillLogger)
+	commandsProcessor.AddHandlers(
+		commandHandlers.RefundTicketsHandler(),
+	)
 
 	forwarder, err := outbox.NewForwarder(
 		db,

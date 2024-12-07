@@ -9,6 +9,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
+	"time"
 )
 
 type Forwarder struct {
@@ -26,6 +27,10 @@ func NewForwarder(
 		watermillSQL.SubscriberConfig{
 			SchemaAdapter:  watermillSQL.DefaultPostgreSQLSchema{},
 			OffsetsAdapter: watermillSQL.DefaultPostgreSQLOffsetsAdapter{},
+			// todo setup through config. for tests should be different values
+			PollInterval:   100 * time.Millisecond,
+			ResendInterval: 100 * time.Millisecond,
+			RetryInterval:  100 * time.Millisecond,
 		},
 		logger,
 	)

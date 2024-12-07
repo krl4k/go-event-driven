@@ -126,6 +126,7 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Bo
 				return fmt.Errorf("failed to create event bus: %w", err)
 			}
 
+			log.FromContext(ctx).Info("publishing booking made event")
 			return eb.Publish(ctx, bdomain.BookingMade{
 				BookingID:       id,
 				NumberOfTickets: booking.NumberOfTickets,

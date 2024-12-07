@@ -5,10 +5,14 @@ go 1.22
 toolchain go1.23.2
 
 require (
+	github.com/AlekSi/pointer v1.2.0
 	github.com/ThreeDotsLabs/go-event-driven v0.0.12
 	github.com/ThreeDotsLabs/watermill v1.3.7
 	github.com/ThreeDotsLabs/watermill-redisstream v1.4.2
+	github.com/ThreeDotsLabs/watermill-sql/v2 v2.0.0
+	github.com/avito-tech/go-transaction-manager/drivers/sql/v2 v2.0.0-rc9.1
 	github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2 v2.0.0
+	github.com/avito-tech/go-transaction-manager/trm/v2 v2.0.0
 	github.com/docker/docker v27.1.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/golang/mock v1.6.0
@@ -31,8 +35,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Rican7/retry v0.3.1 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/avito-tech/go-transaction-manager/drivers/sql/v2 v2.0.0-rc9.1 // indirect
-	github.com/avito-tech/go-transaction-manager/trm/v2 v2.0.0 // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
