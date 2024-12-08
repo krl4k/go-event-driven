@@ -140,7 +140,7 @@ func NewApp(
 	)
 
 	commandHandlers := commands.NewHandler(paymentsClient, receiptsClient)
-	commandsProcessor, err := commands.NewProcessor(router, redisClient, watermillLogger)
+	commandsProcessor, err := commands.NewCommandsProcessor(router, redisClient, watermillLogger)
 	commandsProcessor.AddHandlers(
 		commandHandlers.RefundTicketsHandler(),
 	)

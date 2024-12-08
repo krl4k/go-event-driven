@@ -14,7 +14,7 @@ func NewBus(
 		publisher,
 		cqrs.CommandBusConfig{
 			GeneratePublishTopic: func(params cqrs.CommandBusGeneratePublishTopicParams) (string, error) {
-				return "RefundTicket", nil
+				return "commands." + params.CommandName, nil
 			},
 			Marshaler: cqrs.JSONMarshaler{
 				GenerateName: cqrs.StructName,

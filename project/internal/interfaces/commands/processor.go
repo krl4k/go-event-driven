@@ -9,7 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func NewProcessor(
+func NewCommandsProcessor(
 	router *message.Router,
 	rdb *redis.Client,
 	watermillLogger watermill.LoggerAdapter,
@@ -23,7 +23,7 @@ func NewProcessor(
 		router,
 		cqrs.CommandProcessorConfig{
 			GenerateSubscribeTopic: func(params cqrs.CommandProcessorGenerateSubscribeTopicParams) (string, error) {
-				return "RefundTicket", nil
+				return "commands." + params.CommandName, nil
 			},
 			SubscriberConstructor: func(params cqrs.CommandProcessorSubscriberConstructorParams) (message.Subscriber, error) {
 				return sub, nil
