@@ -15,6 +15,7 @@ import (
 	"github.com/lib/pq"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/outbox"
+	"time"
 
 	bdomain "tickets/internal/domain/bookings"
 	sdomain "tickets/internal/domain/shows"
@@ -132,6 +133,7 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Bo
 				NumberOfTickets: booking.NumberOfTickets,
 				CustomerEmail:   booking.CustomerEmail,
 				ShowID:          booking.ShowId,
+				BookedAt:        time.Now().UTC(),
 			})
 		})
 

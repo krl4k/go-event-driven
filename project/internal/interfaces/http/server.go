@@ -10,15 +10,17 @@ import (
 	"tickets/internal/application/usecases/booking"
 	"tickets/internal/application/usecases/shows"
 	"tickets/internal/application/usecases/tickets"
+	"tickets/internal/repository"
 )
 
 type Server struct {
 	e *echo.Echo
 
-	commandBus      *cqrs.CommandBus
-	ticketsService  *tickets.ProcessTicketsUsecase
-	showsService    *shows.CreateShowUsecase
-	bookingsService *booking.BookTicketsUsecase
+	commandBus              *cqrs.CommandBus
+	ticketsService          *tickets.ProcessTicketsUsecase
+	showsService            *shows.CreateShowUsecase
+	bookingsService         *booking.BookTicketsUsecase
+	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo
 }
 
 func NewServer(
@@ -27,18 +29,20 @@ func NewServer(
 	ticketService *tickets.ProcessTicketsUsecase,
 	showsService *shows.CreateShowUsecase,
 	bookingsService *booking.BookTicketsUsecase,
+	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo,
 	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{
-		e:               e,
-		commandBus:      commandBus,
-		ticketsService:  ticketService,
-		showsService:    showsService,
-		bookingsService: bookingsService,
+		e:                       e,
+		commandBus:              commandBus,
+		ticketsService:          ticketService,
+		showsService:            showsService,
+		bookingsService:         bookingsService,
+		opsBookingReadModelRepo: opsBookingReadModelRepo,
 	}
 	e.POST("/tickets-status", srv.TicketsStatusHandler)
 	e.GET("/tickets", srv.GetTicketsHandler)
-	// put with query params  /ticket-refund/:ticket_id
+
 	e.PUT("/ticket-refund/:ticket_id", srv.RefundTicketHandler)
 
 	e.POST("/shows", srv.CreateShowHandler)

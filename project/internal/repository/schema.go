@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -32,7 +33,6 @@ CREATE TABLE IF NOT EXISTS shows (
 	}
 
 	_, err = db.ExecContext(context.Background(), `
-	
 CREATE TABLE IF NOT EXISTS bookings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     show_id UUID NOT NULL,
@@ -46,6 +46,16 @@ CREATE TABLE IF NOT EXISTS bookings (
 	if err != nil {
 		return fmt.Errorf("failed to create bookings table: %w", err)
 	}
+
+	_, err = db.ExecContext(context.Background(), `
+CREATE TABLE IF NOT EXISTS read_model_ops_bookings (
+	booking_id UUID PRIMARY KEY,
+	payload JSONB NOT NULL
+);`)
+	if err != nil {
+		return fmt.Errorf("failed to create read_model_ops_bookings table: %w", err)
+	}
+	log.FromContext(context.Background()).Info("Database schema initialized")
 
 	return nil
 }

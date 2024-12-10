@@ -42,9 +42,9 @@ func setupTestDB(t *testing.T) {
 }
 
 func cleanupTestDB(t *testing.T) {
-	db := getDb()
-	_, err := db.Exec("TRUNCATE TABLE tickets")
-	require.NoError(t, err)
+	//db := getDb()
+	//_, err := db.Exec("TRUNCATE TABLE tickets")
+	//require.NoError(t, err)
 }
 
 func TestTicketsRepo_Create_Integration(t *testing.T) {

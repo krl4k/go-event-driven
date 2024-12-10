@@ -16,6 +16,7 @@ type TicketStatusRequest struct {
 		Amount   string `json:"amount"`
 		Currency string `json:"currency"`
 	} `json:"price"`
+	BookingID string `json:"booking_id"`
 }
 
 type TicketsStatusRequest struct {
@@ -48,6 +49,7 @@ func (s *Server) TicketsStatusHandler(c echo.Context) error {
 				Amount:   ticket.Price.Amount,
 				Currency: ticket.Price.Currency,
 			},
+			BookingId: ticket.BookingID,
 		})
 	}
 
@@ -56,7 +58,12 @@ func (s *Server) TicketsStatusHandler(c echo.Context) error {
 		WithField("idempotency_key", idempotencyKey).
 		Info("Confirming tickets http handler")
 
-	s.ticketsService.ProcessTickets(ctx, tickets)
+	err = s.ticketsService.ProcessTickets(ctx, tickets)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{
+			"reason": err.Error(),
+		})
+	}
 
 	return c.NoContent(http.StatusOK)
 }

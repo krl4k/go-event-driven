@@ -50,11 +50,13 @@ func NewApp(
 	redisClient *redis.Client,
 	db *sqlx.DB,
 ) (*App, error) {
+	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
+
 	ticketsRepo := repository.NewTicketsRepo(db)
 	showsRepo := repository.NewShowsRepo(db, trmsqlx.DefaultCtxGetter)
 	bookingsRepo := repository.NewBookingsRepo(db, trmsqlx.DefaultCtxGetter)
-
-	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
+	opsBookingReadModelRepo := repository.NewOpsBookingReadModelRepo(
+		db, trmsqlx.DefaultCtxGetter, trManager)
 
 	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
 	if err != nil {
@@ -92,6 +94,7 @@ func NewApp(
 		ticketsService,
 		showsService,
 		bookingsService,
+		opsBookingReadModelRepo,
 		router.IsRunning,
 	)
 
@@ -137,9 +140,26 @@ func NewApp(
 
 		// BookingMade handlers
 		eventHandler.TicketBookingHandler(),
+
+		// Read model handlers
+		cqrs.NewEventHandler(
+			"ops_booking_read_model.on_booking_made",
+			opsBookingReadModelRepo.OnBookingMadeEvent),
+		cqrs.NewEventHandler(
+			"ops_booking_read_model.on_ticket_booking_confirmed",
+			opsBookingReadModelRepo.OnTicketBookingConfirmedEvent),
+		cqrs.NewEventHandler(
+			"ops_booking_read_model.on_ticket_receipt_issued",
+			opsBookingReadModelRepo.OnTicketReceiptIssuedEvent),
+		cqrs.NewEventHandler(
+			"ops_booking_read_model.on_ticket_printed",
+			opsBookingReadModelRepo.OnTicketPrintedEvent),
+		cqrs.NewEventHandler(
+			"ops_booking_read_model.on_ticket_removed",
+			opsBookingReadModelRepo.OnTicketRefundedEvent),
 	)
 
-	commandHandlers := commands.NewHandler(paymentsClient, receiptsClient)
+	commandHandlers := commands.NewHandler(eventBus, paymentsClient, receiptsClient)
 	commandsProcessor, err := commands.NewCommandsProcessor(router, redisClient, watermillLogger)
 	commandsProcessor.AddHandlers(
 		commandHandlers.RefundTicketsHandler(),

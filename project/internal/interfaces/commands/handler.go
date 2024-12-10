@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 )
 
 type PaymentsService interface {
@@ -13,15 +14,18 @@ type ReceiptsService interface {
 }
 
 type Handler struct {
+	eb              *cqrs.EventBus
 	paymentService  PaymentsService
 	receiptsService ReceiptsService
 }
 
 func NewHandler(
+	eb *cqrs.EventBus,
 	paymentService PaymentsService,
 	receiptsService ReceiptsService,
 ) *Handler {
 	return &Handler{
+		eb:              eb,
 		paymentService:  paymentService,
 		receiptsService: receiptsService,
 	}
