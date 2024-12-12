@@ -164,7 +164,12 @@ func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedEvent(ctx context.Cont
 
 			ticket := findReadModelByBookingID.Tickets[event.TicketId]
 
-			ticket.Status = "confirmed"
+			confirmedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse confirmed at time: %w", err)
+			}
+
+			ticket.ConfirmedAt = confirmedAt
 			ticket.PriceAmount = event.Price.Amount
 			ticket.PriceCurrency = event.Price.Currency
 			ticket.CustomerEmail = event.CustomerEmail
@@ -271,8 +276,12 @@ func (r *OpsBookingReadModelRepo) OnTicketRefundedEvent(ctx context.Context, eve
 				return fmt.Errorf("ticket with id %s not found in booking with id %s", event.TicketID, findReadModelByTicketID.BookingID)
 			}
 
-			ticket.Status = "refunded"
+			refundedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse confirmed at time: %w", err)
+			}
 
+			ticket.ConfirmedAt = refundedAt
 			findReadModelByTicketID.Tickets[event.TicketID] = ticket
 
 			err = r.updateReadModel(ctx, findReadModelByTicketID)
