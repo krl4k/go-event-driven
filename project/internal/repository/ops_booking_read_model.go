@@ -69,6 +69,47 @@ func (r *OpsBookingReadModelRepo) GetAll(ctx context.Context) ([]ops.Booking, er
 	return bookings, nil
 }
 
+type Filters struct {
+	ReceiptIssueDate time.Time
+}
+
+func (r *OpsBookingReadModelRepo) GetWithFilters(ctx context.Context, filters Filters) ([]ops.Booking, error) {
+	query := `
+SELECT payload FROM read_model_ops_bookings 
+	WHERE booking_id IN (
+	    SELECT booking_id FROM (
+	        SELECT booking_id, 
+	            DATE(jsonb_path_query(payload, '$.tickets.*.receipt_issued_at')::text) as receipt_issued_at 
+	        FROM 
+	            read_model_ops_bookings
+	    ) bookings_within_date 
+	    WHERE receipt_issued_at = $1)
+`
+
+	rows, err := r.db.QueryContext(ctx, query, filters.ReceiptIssueDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	var bookings []ops.Booking
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+
+		booking, err := r.unmarshalReadModelFromDB(payload)
+		if err != nil {
+			return nil, err
+		}
+
+		bookings = append(bookings, *booking)
+	}
+
+	return bookings, nil
+}
+
 func (r *OpsBookingReadModelRepo) OnBookingMadeEvent(ctx context.Context, event *bdomain.BookingMade) error {
 	log.FromContext(ctx).Info("OnBookingMadeEvent")
 

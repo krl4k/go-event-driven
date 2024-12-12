@@ -48,6 +48,9 @@ func NewServer(
 	e.POST("/shows", srv.CreateShowHandler)
 	e.POST("/book-tickets", srv.BookTicketsHandler)
 
+	e.GET("/ops/bookings", srv.GetBookingsHandler)
+	e.GET("/ops/bookings/:booking_id", srv.GetBookingHandler)
+
 	e.GET("/health", func(c echo.Context) error {
 		if !routerIsRunning() {
 			return c.String(http.StatusServiceUnavailable, "router is not running")
