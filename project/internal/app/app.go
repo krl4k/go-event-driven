@@ -12,6 +12,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -19,6 +20,7 @@ import (
 	"tickets/internal/application/usecases/booking"
 	"tickets/internal/application/usecases/shows"
 	"tickets/internal/application/usecases/tickets"
+	"tickets/internal/domain"
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/commands"
 	"tickets/internal/interfaces/events"
@@ -57,6 +59,7 @@ func NewApp(
 	bookingsRepo := repository.NewBookingsRepo(db, trmsqlx.DefaultCtxGetter)
 	opsBookingReadModelRepo := repository.NewOpsBookingReadModelRepo(
 		db, trmsqlx.DefaultCtxGetter, trManager)
+	eventsRepo := repository.NewEventsRepo(db)
 
 	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
 	if err != nil {
@@ -137,6 +140,59 @@ func NewApp(
 			}
 
 			return publisher.Publish("events."+eventName, msg)
+		},
+	)
+
+	saverSub, err :=
+		redisstream.NewSubscriber(redisstream.SubscriberConfig{
+			Client:        redisClient,
+			ConsumerGroup: "events_saver",
+		}, watermillLogger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subscriber: %w", err)
+	}
+
+	router.AddNoPublisherHandler(
+		"events_saver",
+		"events",
+		saverSub,
+		func(msg *message.Message) error {
+			type Event struct {
+				Header domain.EventHeader `json:"header"`
+			}
+
+			var event Event
+			err := marshaller.Unmarshal(msg, &event)
+			if err != nil {
+				return err
+			}
+
+			eventName := marshaller.NameFromMessage(msg)
+			if eventName == "" {
+				return fmt.Errorf("cannot get event name from message")
+			}
+
+			publishedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse published_at for event %s: %w", eventName, err)
+			}
+
+			id, err := uuid.Parse(event.Header.Id)
+			if err != nil {
+				return fmt.Errorf("failed to parse ID: %w", err)
+			}
+
+			err = eventsRepo.SaveEvent(
+				msg.Context(),
+				id,
+				publishedAt,
+				eventName,
+				msg.Payload)
+			if err != nil {
+				return fmt.Errorf("failed to save event %s: %w", eventName, err)
+			}
+
+			return err
 		},
 	)
 

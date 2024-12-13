@@ -64,6 +64,17 @@ ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL;
 		return fmt.Errorf("failed to add deleted_at column to tickets table: %w", err)
 	}
 
+	_, err = db.ExecContext(context.Background(), `
+CREATE TABLE IF NOT EXISTS events (
+    event_id UUID PRIMARY KEY,
+    published_at TIMESTAMP NOT NULL,
+    event_name VARCHAR(255) NOT NULL,
+    event_payload JSONB NOT NULL
+);`)
+	if err != nil {
+		return fmt.Errorf("failed to create events table: %w", err)
+	}
+
 	log.FromContext(context.Background()).Info("Database schema initialized")
 	return nil
 }

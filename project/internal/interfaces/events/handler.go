@@ -7,6 +7,7 @@ import (
 	sdomain "tickets/internal/domain/shows"
 	tdomain "tickets/internal/domain/tickets"
 	"tickets/internal/infrastructure/clients"
+	"time"
 )
 
 //go:generate mockgen -destination=mocks/spreadsheets_service_mock.go -package=mocks . SpreadsheetsService
@@ -38,6 +39,10 @@ type TicketsRepository interface {
 //go:generate mockgen -destination=mocks/shows_repository_mock.go -package=mocks . ShowsRepository
 type ShowsRepository interface {
 	GetShow(ctx context.Context, id uuid.UUID) (*sdomain.Show, error)
+}
+
+type EventRepository interface {
+	SaveEvent(ctx context.Context, id uuid.UUID, publishedAt time.Time, eventName string, payload []byte) error
 }
 
 type Handler struct {

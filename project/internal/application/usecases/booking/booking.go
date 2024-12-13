@@ -13,6 +13,7 @@ import (
 	"github.com/avito-tech/go-transaction-manager/trm/v2/settings"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"tickets/internal/domain"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/outbox"
 	"time"
@@ -129,6 +130,7 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Bo
 
 			log.FromContext(ctx).Info("publishing booking made event")
 			return eb.Publish(ctx, bdomain.BookingMade{
+				Header:          domain.NewEventHeader(),
 				BookingID:       id,
 				NumberOfTickets: booking.NumberOfTickets,
 				CustomerEmail:   booking.CustomerEmail,
