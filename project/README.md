@@ -20,6 +20,8 @@ task test-component-local # run tests
 
 ## Diagram
 
+
+
 ```mermaid
 sequenceDiagram
     participant C as Client
@@ -87,4 +89,20 @@ sequenceDiagram
             S->>DB: ticketsRepository.Delete
         end
     end
+```
+
+
+### Events 
+```mermaid
+graph LR
+   A[Event Bus] --> B['events' topic]
+   B --> C[Data lake consumer group]
+   B --> D[Event forwarder consumer group]
+   C --> E[Data lake]
+   D --> F['events.BookingMade' topic]
+   D --> G['events.TicketBookingConfirmed' topic]
+   D --> H['events.TicketReceiptIssued' topic]
+   D --> I['events.TicketPrinted' topic]
+   D --> J['events.TicketRefunded' topic]
+   D --> K['events.ReadModelIn' topic]
 ```

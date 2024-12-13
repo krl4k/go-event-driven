@@ -113,6 +113,33 @@ func NewApp(
 	// skip marshalling errors before retrying
 	router.AddMiddleware(events.SkipMarshallingErrorsMiddleware)
 
+	sub, err :=
+		redisstream.NewSubscriber(redisstream.SubscriberConfig{
+			Client:        redisClient,
+			ConsumerGroup: "events_splitter",
+		}, watermillLogger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create subscriber: %w", err)
+	}
+
+	marshaller := cqrs.JSONMarshaler{
+		GenerateName: cqrs.StructName,
+	}
+
+	router.AddNoPublisherHandler(
+		"events_splitter",
+		"events",
+		sub,
+		func(msg *message.Message) error {
+			eventName := marshaller.NameFromMessage(msg)
+			if eventName == "" {
+				return fmt.Errorf("cannot get event name from message")
+			}
+
+			return publisher.Publish("events."+eventName, msg)
+		},
+	)
+
 	eventHandler := events.NewHandler(
 		eventBus,
 		spreadsheetsClient,
@@ -122,10 +149,8 @@ func NewApp(
 		ticketsRepo,
 		showsRepo,
 	)
-	marshaler := cqrs.JSONMarshaler{
-		GenerateName: cqrs.StructName,
-	}
-	eventProcessor, err := events.NewEventProcessor(router, redisClient, marshaler, watermillLogger)
+
+	eventProcessor, err := events.NewEventProcessor(router, redisClient, marshaller, watermillLogger)
 
 	eventProcessor.AddHandlers(
 		// TicketBookingConfirmed handlers
@@ -161,9 +186,15 @@ func NewApp(
 
 	commandHandlers := commands.NewHandler(eventBus, paymentsClient, receiptsClient)
 	commandsProcessor, err := commands.NewCommandsProcessor(router, redisClient, watermillLogger)
-	commandsProcessor.AddHandlers(
+	if err != nil {
+		return nil, err
+	}
+	err = commandsProcessor.AddHandlers(
 		commandHandlers.RefundTicketsHandler(),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	forwarder, err := outbox.NewForwarder(
 		db,
