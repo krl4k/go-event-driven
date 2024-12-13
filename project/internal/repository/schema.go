@@ -55,7 +55,15 @@ CREATE TABLE IF NOT EXISTS read_model_ops_bookings (
 	if err != nil {
 		return fmt.Errorf("failed to create read_model_ops_bookings table: %w", err)
 	}
-	log.FromContext(context.Background()).Info("Database schema initialized")
 
+	_, err = db.ExecContext(context.Background(), `
+ALTER TABLE tickets
+ADD COLUMN deleted_at TIMESTAMP DEFAULT NULL;
+`)
+	if err != nil {
+		return fmt.Errorf("failed to add deleted_at column to tickets table: %w", err)
+	}
+
+	log.FromContext(context.Background()).Info("Database schema initialized")
 	return nil
 }

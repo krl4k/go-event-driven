@@ -7,14 +7,16 @@ import (
 	"github.com/jmoiron/sqlx"
 	"strconv"
 	domain "tickets/internal/domain/tickets"
+	"time"
 )
 
 // Ticket represents the ticket entity
 type Ticket struct {
-	ID            uuid.UUID `db:"ticket_id"`
-	PriceAmount   float64   `db:"price_amount"`
-	PriceCurrency string    `db:"price_currency"`
-	CustomerEmail string    `db:"customer_email"`
+	ID            uuid.UUID  `db:"ticket_id"`
+	PriceAmount   float64    `db:"price_amount"`
+	PriceCurrency string     `db:"price_currency"`
+	CustomerEmail string     `db:"customer_email"`
+	DeletedAt     *time.Time `db:"deleted_at"`
 }
 
 type TicketsRepo struct {
@@ -47,9 +49,25 @@ func (r *TicketsRepo) Create(ctx context.Context, t *domain.Ticket) error {
 	return err
 }
 
+var ErrTicketNotFound = fmt.Errorf("ticket not found")
+
 func (r *TicketsRepo) Delete(ctx context.Context, ticketID uuid.UUID) error {
-	query := `DELETE FROM tickets WHERE ticket_id = $1`
-	_, err := r.db.ExecContext(ctx, query, ticketID)
+	query := `
+		UPDATE tickets SET deleted_at = $1 WHERE ticket_id = $2`
+
+	res, err := r.db.ExecContext(ctx, query, time.Now().UTC(), ticketID)
+	if err != nil {
+		return fmt.Errorf("failed to delete ticket: %w", err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", ErrTicketNotFound)
+	}
+
+	if rowsAffected == 0 {
+		return ErrTicketNotFound
+	}
 	return err
 }
 
@@ -57,7 +75,8 @@ func (r *TicketsRepo) List(ctx context.Context) ([]domain.Ticket, error) {
 	var tickets []Ticket
 	query := `
 		SELECT ticket_id, price_amount, price_currency, customer_email
-		FROM tickets`
+		FROM tickets
+		WHERE deleted_at IS NULL`
 
 	err := r.db.SelectContext(ctx, &tickets, query)
 	if err != nil {
