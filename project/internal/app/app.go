@@ -53,21 +53,8 @@ func NewApp(
 	db *sqlx.DB,
 ) (*App, error) {
 	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
-
-	ticketsRepo := repository.NewTicketsRepo(db)
-	showsRepo := repository.NewShowsRepo(db, trmsqlx.DefaultCtxGetter)
-	bookingsRepo := repository.NewBookingsRepo(db, trmsqlx.DefaultCtxGetter)
-	opsBookingReadModelRepo := repository.NewOpsBookingReadModelRepo(
-		db, trmsqlx.DefaultCtxGetter, trManager)
-	eventsRepo := repository.NewEventsRepo(db)
-
-	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
-	if err != nil {
-		return nil, err
-	}
-
 	var publisher message.Publisher
-	publisher, err = redisstream.NewPublisher(redisstream.PublisherConfig{
+	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
 		Client: redisClient,
 	}, watermillLogger)
 	if err != nil {
@@ -78,6 +65,19 @@ func NewApp(
 		Publisher: publisher,
 	}
 	eventBus, err := events.NewEventBus(publisher, watermillLogger)
+
+	ticketsRepo := repository.NewTicketsRepo(db)
+	showsRepo := repository.NewShowsRepo(db, trmsqlx.DefaultCtxGetter)
+	bookingsRepo := repository.NewBookingsRepo(db, trmsqlx.DefaultCtxGetter)
+	opsBookingReadModelRepo := repository.NewOpsBookingReadModelRepo(
+		db, trmsqlx.DefaultCtxGetter, trManager, eventBus)
+	eventsRepo := repository.NewEventsRepo(db)
+
+	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
+	if err != nil {
+		return nil, err
+	}
+
 	commandBus, err := commands.NewBus(publisher, watermillLogger)
 
 	ticketsService := tickets.NewTicketConfirmationService(eventBus, ticketsRepo)

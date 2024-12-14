@@ -2,6 +2,7 @@ package ops
 
 import (
 	"github.com/google/uuid"
+	"tickets/internal/domain"
 	"time"
 )
 
@@ -27,4 +28,14 @@ type Ticket struct {
 
 	ReceiptIssuedAt time.Time `json:"receipt_issued_at"`
 	ReceiptNumber   string    `json:"receipt_number"`
+}
+
+type InternalOpsReadModelUpdated struct {
+	Header domain.EventHeader `json:"header"`
+
+	BookingID uuid.UUID `json:"booking_id"`
+}
+
+func (InternalOpsReadModelUpdated) IsInternal() bool {
+	return true
 }

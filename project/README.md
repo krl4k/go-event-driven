@@ -106,3 +106,23 @@ graph LR
    D --> J['events.TicketRefunded' topic]
    D --> K['events.ReadModelIn' topic]
 ```
+
+### Internal Events
+```mermaid
+graph LR
+    A[Event Bus] --> B['events' topic]
+    B --> C[Data lake consumer]
+    B --> D[Events forwarder]
+    C --> E[Data lake]
+    D --> F['events.BookingMade' topic]
+    D --> G['events.TicketBookingConfirmed' topic]
+    D --> H['events.TicketReceiptIssued' topic]
+    D --> I['events.TicketPrinted' topic]
+    D --> J['events.TicketRefunded' topic]
+    D --> K['events.ReadModelIn' topic]
+    A -- publish directly --> L['internal-events.svc-tickets.InternalOpsReadModelUpdated'<br>topic]
+
+
+classDef orange fill:#f96,stroke:#333,stroke-width:4px;
+class L orange
+```

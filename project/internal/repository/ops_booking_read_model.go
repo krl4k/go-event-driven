@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	trmsql "github.com/avito-tech/go-transaction-manager/drivers/sql/v2"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	trmanager "github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/settings"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"tickets/internal/domain"
 	bdomain "tickets/internal/domain/bookings"
 	"tickets/internal/domain/ops"
 	tdomain "tickets/internal/domain/tickets"
@@ -22,17 +24,21 @@ type OpsBookingReadModelRepo struct {
 	db        *sqlx.DB
 	getter    *trmsqlx.CtxGetter
 	trManager *trmanager.Manager
+
+	eventBus *cqrs.EventBus
 }
 
 func NewOpsBookingReadModelRepo(
 	db *sqlx.DB,
 	getter *trmsqlx.CtxGetter,
 	trManager *trmanager.Manager,
+	eventBus *cqrs.EventBus,
 ) *OpsBookingReadModelRepo {
 	return &OpsBookingReadModelRepo{
 		db:        db,
 		getter:    getter,
 		trManager: trManager,
+		eventBus:  eventBus,
 	}
 }
 
@@ -143,7 +149,10 @@ func (r *OpsBookingReadModelRepo) OnBookingMadeEvent(ctx context.Context, event 
 				return fmt.Errorf("booking with id %s already exists", booking.BookingID)
 			}
 
-			return nil
+			return r.eventBus.Publish(ctx, &ops.InternalOpsReadModelUpdated{
+				Header:    domain.NewEventHeader(),
+				BookingID: booking.BookingID,
+			})
 		},
 	)
 
@@ -359,7 +368,10 @@ func (r *OpsBookingReadModelRepo) updateReadModel(ctx context.Context, readModel
 		return err
 	}
 
-	return nil
+	return r.eventBus.Publish(ctx, &ops.InternalOpsReadModelUpdated{
+		Header:    domain.NewEventHeader(),
+		BookingID: readModel.BookingID,
+	})
 }
 
 func (r *OpsBookingReadModelRepo) marshalReadModelToDB(readModel *ops.Booking) ([]byte, error) {

@@ -14,3 +14,7 @@ type BookingMade_v1 struct {
 	ShowID          uuid.UUID          `json:"show_id"`
 	BookedAt        time.Time          `json:"booked_at"`
 }
+
+func (b BookingMade_v1) IsInternal() bool {
+	return false
+}
