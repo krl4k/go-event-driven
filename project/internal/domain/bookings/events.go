@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type BookingMade struct {
+type BookingMade_v1 struct {
 	Header          domain.EventHeader `json:"header"`
 	BookingID       uuid.UUID          `json:"booking_id"`
 	NumberOfTickets int                `json:"number_of_tickets"`

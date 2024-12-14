@@ -34,7 +34,7 @@ func (s *ProcessTicketsUsecase) ProcessTickets(
 ) error {
 	for _, ticket := range tickets {
 		if ticket.Status == "confirmed" {
-			err := s.eb.Publish(ctx, domain.TicketBookingConfirmed{
+			err := s.eb.Publish(ctx, domain.TicketBookingConfirmed_v1{
 				Header: domain2.NewEventHeaderWithIdempotencyKey(
 					idempotency.GetKey(ctx) + ticket.TicketId,
 				),
@@ -47,10 +47,10 @@ func (s *ProcessTicketsUsecase) ProcessTickets(
 				BookingId: ticket.BookingId,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to publish TicketBookingConfirmed: %w", err)
+				return fmt.Errorf("failed to publish TicketBookingConfirmed_v1: %w", err)
 			}
 		} else {
-			err := s.eb.Publish(ctx, domain.TicketBookingCanceled{
+			err := s.eb.Publish(ctx, domain.TicketBookingCanceled_v1{
 				Header: domain2.NewEventHeaderWithIdempotencyKey(
 					idempotency.GetKey(ctx) + ticket.TicketId,
 				),
@@ -63,7 +63,7 @@ func (s *ProcessTicketsUsecase) ProcessTickets(
 				BookingId: ticket.BookingId,
 			})
 			if err != nil {
-				return fmt.Errorf("failed to publish TicketBookingCanceled: %w", err)
+				return fmt.Errorf("failed to publish TicketBookingCanceled_v1: %w", err)
 			}
 		}
 	}

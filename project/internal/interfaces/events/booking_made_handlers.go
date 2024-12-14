@@ -12,7 +12,7 @@ import (
 func (h *Handler) TicketBookingHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"ticket_booking_handler",
-		func(ctx context.Context, payload *domain.BookingMade) error {
+		func(ctx context.Context, payload *domain.BookingMade_v1) error {
 			log.FromContext(ctx).Info("Booking made handler")
 
 			show, err := h.showsRepository.GetShow(ctx, payload.ShowID)

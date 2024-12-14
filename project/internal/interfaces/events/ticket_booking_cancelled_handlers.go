@@ -12,7 +12,7 @@ import (
 func (h *Handler) RefundTicketHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"refund_ticket_handler",
-		func(ctx context.Context, payload *domain.TicketBookingCanceled) error {
+		func(ctx context.Context, payload *domain.TicketBookingCanceled_v1) error {
 			log.FromContext(ctx).Info("Refunding ticket")
 
 			if payload.Price.Currency == "" {
@@ -37,7 +37,7 @@ func (h *Handler) RefundTicketHandler() cqrs.EventHandler {
 func (h *Handler) RemoveTicketsHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"remove_tickets_handler",
-		func(ctx context.Context, payload *domain.TicketBookingCanceled) error {
+		func(ctx context.Context, payload *domain.TicketBookingCanceled_v1) error {
 			log.FromContext(ctx).Info("Removing ticket")
 
 			id, err := uuid.Parse(payload.TicketId)

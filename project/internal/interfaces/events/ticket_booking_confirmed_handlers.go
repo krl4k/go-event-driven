@@ -14,7 +14,7 @@ import (
 func (h *Handler) TicketsToPrintHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"ticket_to_print_handler",
-		func(ctx context.Context, payload *domain.TicketBookingConfirmed) error {
+		func(ctx context.Context, payload *domain.TicketBookingConfirmed_v1) error {
 			log.FromContext(ctx).Info("Adding ticket to print")
 
 			if payload.Price.Currency == "" {
@@ -37,7 +37,7 @@ func (h *Handler) TicketsToPrintHandler() cqrs.EventHandler {
 func (h *Handler) PrepareTicketsHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"prepare_tickets_handler",
-		func(ctx context.Context, payload *domain.TicketBookingConfirmed) error {
+		func(ctx context.Context, payload *domain.TicketBookingConfirmed_v1) error {
 			log.FromContext(ctx).Info("Preparing ticket. Generate ticket file HTML")
 
 			if payload.Price.Currency == "" {
@@ -66,7 +66,7 @@ func (h *Handler) PrepareTicketsHandler() cqrs.EventHandler {
 
 			return h.eb.Publish(
 				ctx,
-				domain.TicketPrinted{
+				domain.TicketPrinted_v1{
 					Header: domain2.EventHeader{
 						Id:          uuid.NewString(),
 						PublishedAt: time.Now().Format(time.RFC3339),
@@ -83,7 +83,7 @@ func (h *Handler) PrepareTicketsHandler() cqrs.EventHandler {
 func (h *Handler) IssueReceiptHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"issue_receipt_handler",
-		func(ctx context.Context, payload *domain.TicketBookingConfirmed) error {
+		func(ctx context.Context, payload *domain.TicketBookingConfirmed_v1) error {
 			log.FromContext(ctx).Info("Issuing receipt")
 
 			if payload.Price.Currency == "" {
@@ -102,7 +102,7 @@ func (h *Handler) IssueReceiptHandler() cqrs.EventHandler {
 
 			err = h.eb.Publish(
 				ctx,
-				domain.TicketReceiptIssued{
+				domain.TicketReceiptIssued_v1{
 					Header:        domain2.NewEventHeaderWithIdempotencyKey(payload.Header.IdempotencyKey),
 					TicketId:      payload.TicketId,
 					ReceiptNumber: resp.ReceiptNumber,
@@ -110,7 +110,7 @@ func (h *Handler) IssueReceiptHandler() cqrs.EventHandler {
 					BookingId:     payload.BookingId,
 				})
 			if err != nil {
-				return fmt.Errorf("failed to publish TicketReceiptIssued: %w", err)
+				return fmt.Errorf("failed to publish TicketReceiptIssued_v1: %w", err)
 			}
 
 			return nil
@@ -121,7 +121,7 @@ func (h *Handler) IssueReceiptHandler() cqrs.EventHandler {
 func (h *Handler) StoreTicketsHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"store_tickets_handler",
-		func(ctx context.Context, payload *domain.TicketBookingConfirmed) error {
+		func(ctx context.Context, payload *domain.TicketBookingConfirmed_v1) error {
 			log.FromContext(ctx).Info("Storing ticket")
 
 			return h.ticketsRepository.Create(ctx, &domain.Ticket{

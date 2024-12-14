@@ -110,7 +110,7 @@ SELECT payload FROM read_model_ops_bookings
 	return bookings, nil
 }
 
-func (r *OpsBookingReadModelRepo) OnBookingMadeEvent(ctx context.Context, event *bdomain.BookingMade) error {
+func (r *OpsBookingReadModelRepo) OnBookingMadeEvent(ctx context.Context, event *bdomain.BookingMade_v1) error {
 	log.FromContext(ctx).Info("OnBookingMadeEvent")
 
 	return r.trManager.DoWithSettings(
@@ -149,7 +149,7 @@ func (r *OpsBookingReadModelRepo) OnBookingMadeEvent(ctx context.Context, event 
 
 }
 
-func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedEvent(ctx context.Context, event *tdomain.TicketBookingConfirmed) error {
+func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedEvent(ctx context.Context, event *tdomain.TicketBookingConfirmed_v1) error {
 	return r.trManager.DoWithSettings(
 		ctx,
 		trmsql.MustSettings(
@@ -186,7 +186,7 @@ func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedEvent(ctx context.Cont
 	)
 }
 
-func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedEvent(ctx context.Context, event *tdomain.TicketReceiptIssued) error {
+func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedEvent(ctx context.Context, event *tdomain.TicketReceiptIssued_v1) error {
 	log.FromContext(ctx).Info("OnTicketReceiptIssuedEvent", "event:", event)
 
 	return r.trManager.DoWithSettings(
@@ -221,7 +221,7 @@ func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedEvent(ctx context.Context
 	)
 }
 
-func (r *OpsBookingReadModelRepo) OnTicketPrintedEvent(ctx context.Context, event *tdomain.TicketPrinted) error {
+func (r *OpsBookingReadModelRepo) OnTicketPrintedEvent(ctx context.Context, event *tdomain.TicketPrinted_v1) error {
 	log.FromContext(ctx).Info("OnTicketPrintedEvent", "event:", event)
 
 	return r.trManager.DoWithSettings(
@@ -256,7 +256,7 @@ func (r *OpsBookingReadModelRepo) OnTicketPrintedEvent(ctx context.Context, even
 	)
 }
 
-func (r *OpsBookingReadModelRepo) OnTicketRefundedEvent(ctx context.Context, event *tdomain.TicketRefunded) error {
+func (r *OpsBookingReadModelRepo) OnTicketRefundedEvent(ctx context.Context, event *tdomain.TicketRefunded_v1) error {
 	log.FromContext(ctx).Info("OnTicketRefundedEvent", "event:", event)
 
 	return r.trManager.DoWithSettings(

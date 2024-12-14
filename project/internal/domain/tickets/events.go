@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type TicketBookingConfirmed struct {
+type TicketBookingConfirmed_v1 struct {
 	Header        domain2.EventHeader `json:"header"`
 	TicketId      string              `json:"ticket_id"`
 	CustomerEmail string              `json:"customer_email"`
@@ -13,7 +13,7 @@ type TicketBookingConfirmed struct {
 	BookingId     string              `json:"booking_id"`
 }
 
-type TicketBookingCanceled struct {
+type TicketBookingCanceled_v1 struct {
 	Header        domain2.EventHeader `json:"header"`
 	TicketId      string              `json:"ticket_id"`
 	BookingId     string              `json:"booking_id"`
@@ -21,7 +21,7 @@ type TicketBookingCanceled struct {
 	Price         Money               `json:"price"`
 }
 
-type TicketPrinted struct {
+type TicketPrinted_v1 struct {
 	Header domain2.EventHeader `json:"header"`
 
 	TicketID  string    `json:"ticket_id"`
@@ -30,7 +30,7 @@ type TicketPrinted struct {
 	PrintedAt time.Time `json:"printed_at"`
 }
 
-type TicketReceiptIssued struct {
+type TicketReceiptIssued_v1 struct {
 	Header domain2.EventHeader `json:"header"`
 
 	TicketId      string `json:"ticket_id"`
@@ -40,7 +40,7 @@ type TicketReceiptIssued struct {
 	BookingId string    `json:"booking_id"`
 }
 
-type TicketRefunded struct {
+type TicketRefunded_v1 struct {
 	Header domain2.EventHeader `json:"header"`
 
 	TicketID string `json:"ticket_id"`

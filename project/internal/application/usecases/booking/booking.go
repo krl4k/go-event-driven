@@ -129,7 +129,7 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Bo
 			}
 
 			log.FromContext(ctx).Info("publishing booking made event")
-			return eb.Publish(ctx, bdomain.BookingMade{
+			return eb.Publish(ctx, bdomain.BookingMade_v1{
 				Header:          domain.NewEventHeader(),
 				BookingID:       id,
 				NumberOfTickets: booking.NumberOfTickets,

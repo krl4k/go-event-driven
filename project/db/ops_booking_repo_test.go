@@ -66,7 +66,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		assert.Contains(t, err.Error(), "already exists")
 	})
 
-	t.Run("handle TicketBookingConfirmed event", func(t *testing.T) {
+	t.Run("handle TicketBookingConfirmed_v1 event", func(t *testing.T) {
 		bookingID := uuid.New()
 		ticketID := uuid.New()
 		bookedAt := time.Now().UTC()
@@ -79,7 +79,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Confirm ticket booking
-		event := &tdomain.TicketBookingConfirmed{
+		event := &tdomain.TicketBookingConfirmed_v1{
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			CustomerEmail: "test@example.com",
@@ -104,7 +104,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		assert.Equal(t, "confirmed", ticket.Status)
 	})
 
-	t.Run("handle TicketReceiptIssued event", func(t *testing.T) {
+	t.Run("handle TicketReceiptIssued_v1 event", func(t *testing.T) {
 		bookingID := uuid.New()
 		ticketID := uuid.New()
 		issuedAt := time.Now().UTC()
@@ -116,7 +116,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		event := &tdomain.TicketReceiptIssued{
+		event := &tdomain.TicketReceiptIssued_v1{
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			ReceiptNumber: "REC123",
@@ -135,7 +135,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		assert.Equal(t, issuedAt, ticket.ReceiptIssuedAt)
 	})
 
-	t.Run("handle TicketRefunded event", func(t *testing.T) {
+	t.Run("handle TicketRefunded_v1 event", func(t *testing.T) {
 		bookingID := uuid.New()
 		ticketID := uuid.New()
 
@@ -147,7 +147,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Confirm ticket first
-		err = repo.OnTicketBookingConfirmedEvent(ctx, &tdomain.TicketBookingConfirmed{
+		err = repo.OnTicketBookingConfirmedEvent(ctx, &tdomain.TicketBookingConfirmed_v1{
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			CustomerEmail: "test@example.com",

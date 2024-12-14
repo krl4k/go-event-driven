@@ -26,12 +26,12 @@ func (h *Handler) RefundTicketsHandler() cqrs.CommandHandler {
 			}
 			log.FromContext(ctx).Info("Receipt voided")
 
-			err = h.eb.Publish(ctx, &domain.TicketRefunded{
+			err = h.eb.Publish(ctx, &domain.TicketRefunded_v1{
 				Header:   command.Header,
 				TicketID: command.TicketId,
 			})
 			if err != nil {
-				return fmt.Errorf("error publishing TicketRefunded event: %w", err)
+				return fmt.Errorf("error publishing TicketRefunded_v1 event: %w", err)
 			}
 
 			return nil
