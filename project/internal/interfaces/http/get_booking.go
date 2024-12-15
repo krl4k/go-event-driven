@@ -4,14 +4,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"net/http"
-	"tickets/internal/domain/ops"
+	"tickets/internal/entities"
 	"tickets/internal/repository"
 	"time"
 )
 
 func (s *Server) GetBookingsHandler(c echo.Context) error {
 	var (
-		bookings []ops.Booking
+		bookings []entities.OpsBooking
 	)
 	receiptIssueDate := c.QueryParam("receipt_issue_date")
 	if receiptIssueDate != "" {

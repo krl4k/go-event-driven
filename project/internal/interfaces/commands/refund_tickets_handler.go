@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 )
 
 func (h *Handler) RefundTicketsHandler() cqrs.CommandHandler {
 	return cqrs.NewCommandHandler(
 		"refund_tickets",
-		func(ctx context.Context, command *domain.RefundTicket) error {
+		func(ctx context.Context, command *entities.RefundTicket) error {
 			log.FromContext(ctx).Info("Refunding ticket: ", command.TicketId)
 
 			err := h.paymentService.Refund(ctx, command.TicketId, command.Header.IdempotencyKey)
@@ -26,7 +26,7 @@ func (h *Handler) RefundTicketsHandler() cqrs.CommandHandler {
 			}
 			log.FromContext(ctx).Info("Receipt voided")
 
-			err = h.eb.Publish(ctx, &domain.TicketRefunded_v1{
+			err = h.eb.Publish(ctx, &entities.TicketRefunded_v1{
 				Header:   command.Header,
 				TicketID: command.TicketId,
 			})

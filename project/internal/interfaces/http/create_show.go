@@ -4,7 +4,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"net/http"
-	domain "tickets/internal/domain/shows"
+	"tickets/internal/entities"
 	"time"
 )
 
@@ -30,7 +30,7 @@ func (s *Server) CreateShowHandler(c echo.Context) error {
 	}
 
 	showID, err := s.showsService.CreateShow(ctx,
-		domain.Show{
+		entities.Show{
 			DeadNationId:    request.DeadNationId,
 			NumberOfTickets: request.NumberOfTickets,
 			StartTime:       request.StartTime,

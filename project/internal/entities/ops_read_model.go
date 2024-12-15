@@ -1,21 +1,20 @@
-package ops
+package entities
 
 import (
 	"github.com/google/uuid"
-	"tickets/internal/domain"
 	"time"
 )
 
-type Booking struct {
+type OpsBooking struct {
 	BookingID uuid.UUID `json:"booking_id"`
 	BookedAt  time.Time `json:"booked_at"`
 
-	Tickets map[string]Ticket `json:"tickets"`
+	Tickets map[string]OpsTicket `json:"tickets"`
 
 	LastUpdate time.Time `json:"last_update"`
 }
 
-type Ticket struct {
+type OpsTicket struct {
 	PriceAmount   string `json:"price_amount"`
 	PriceCurrency string `json:"price_currency"`
 	CustomerEmail string `json:"customer_email"`
@@ -31,7 +30,7 @@ type Ticket struct {
 }
 
 type InternalOpsReadModelUpdated struct {
-	Header domain.EventHeader `json:"header"`
+	Header EventHeader `json:"header"`
 
 	BookingID uuid.UUID `json:"booking_id"`
 }

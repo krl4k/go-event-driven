@@ -3,12 +3,12 @@ package shows
 import (
 	"context"
 	"github.com/google/uuid"
-	domain "tickets/internal/domain/shows"
+	"tickets/internal/entities"
 )
 
 //go:generate mockgen -destination=../mocks/mock_shows_service.go -package=mocks tickets/internal/application/services ShowsService
 type ShowsRepo interface {
-	CreateShow(ctx context.Context, show domain.Show) (uuid.UUID, error)
+	CreateShow(ctx context.Context, show entities.Show) (uuid.UUID, error)
 }
 
 type CreateShowUsecase struct {
@@ -21,6 +21,6 @@ func NewShowsService(showsRepo ShowsRepo) *CreateShowUsecase {
 	}
 }
 
-func (s *CreateShowUsecase) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID, error) {
+func (s *CreateShowUsecase) CreateShow(ctx context.Context, show entities.Show) (uuid.UUID, error) {
 	return s.showsRepo.CreateShow(ctx, show)
 }

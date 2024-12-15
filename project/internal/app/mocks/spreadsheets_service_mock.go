@@ -7,7 +7,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	domain "tickets/internal/domain/tickets"
+	entities "tickets/internal/entities"
 
 	gomock "github.com/golang/mock/gomock"
 )
@@ -36,7 +36,7 @@ func (m *MockSpreadsheetsService) EXPECT() *MockSpreadsheetsServiceMockRecorder 
 }
 
 // AppendRow mocks base method.
-func (m *MockSpreadsheetsService) AppendRow(arg0 context.Context, arg1 domain.AppendToTrackerRequest) error {
+func (m *MockSpreadsheetsService) AppendRow(arg0 context.Context, arg1 entities.AppendToTrackerRequest) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AppendRow", arg0, arg1)
 	ret0, _ := ret[0].(error)

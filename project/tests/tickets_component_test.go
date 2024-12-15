@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"sync/atomic"
 	"testing"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 	"time"
 )
 
@@ -27,6 +27,7 @@ type Ticket struct {
 	Status        string `json:"status"`
 	CustomerEmail string `json:"customer_email"`
 	Price         Price  `json:"price"`
+	BookingID     string `json:"booking_id"`
 }
 
 type TicketsStatusRequest struct {
@@ -68,6 +69,7 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 	// Test data
 	idempotencyKey := uuid.NewString()
 	ticketID := uuid.NewString()
+	bookingID := uuid.NewString()
 	customerEmail := "test1@example.com"
 	status := "confirmed"
 	amount := "100.00"
@@ -82,6 +84,7 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 					Amount:   amount,
 					Currency: currency,
 				},
+				BookingID: bookingID,
 			},
 		},
 	}
@@ -90,19 +93,25 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 	var filesCallCount atomic.Int32
 
 	suite.receiptsMock.EXPECT().
-		IssueReceipt(gomock.Any(), domain.IssueReceiptRequest{
-			IdempotencyKey: idempotencyKey + ticketID,
-			TicketID:       ticketID,
-			Price:          domain.Money{Amount: amount, Currency: currency},
-		}).
-		Return(nil, nil).
+		IssueReceipt(
+			gomock.Any(),
+			entities.IssueReceiptRequest{
+				IdempotencyKey: idempotencyKey + ticketID,
+				TicketID:       ticketID,
+				Price:          entities.Money{Amount: amount, Currency: currency},
+			}).
+		Return(&entities.IssueReceiptResponse{
+			ReceiptNumber: "123",
+			IssuedAt:      time.Now(),
+		}, nil).
 		Times(1).
-		Do(func(context.Context, domain.IssueReceiptRequest) {
+		Do(func(ctx context.Context, e entities.IssueReceiptRequest) {
+			fmt.Println("Called IssueReceipt with idempotency key: " + e.IdempotencyKey)
 			receiptsCallCount.Add(1)
 		})
 
 	suite.spreadsheetsMock.EXPECT().
-		AppendRow(gomock.Any(), domain.AppendToTrackerRequest{
+		AppendRow(gomock.Any(), entities.AppendToTrackerRequest{
 			SpreadsheetName: "tickets-to-print",
 			Rows: []string{
 				ticketID,
@@ -113,7 +122,7 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 		}).
 		Return(nil).
 		Times(1).
-		Do(func(context.Context, domain.AppendToTrackerRequest) {
+		Do(func(context.Context, entities.AppendToTrackerRequest) {
 			spreadsheetsCallCount.Add(1)
 		})
 
@@ -134,9 +143,9 @@ func (suite *ComponentTestSuite) TestConfirmedTickets() {
 	require.Eventually(
 		suite.T(),
 		func() bool {
-			return receiptsCallCount.Load() == 1 &&
-				spreadsheetsCallCount.Load() == 1 &&
-				filesCallCount.Load() == 1
+			return spreadsheetsCallCount.Load() == 1 &&
+				filesCallCount.Load() == 1 &&
+				receiptsCallCount.Load() == 1
 		},
 		5*time.Second,
 		100*time.Millisecond,
@@ -148,6 +157,7 @@ func (suite *ComponentTestSuite) TestIdempotencyConfirmedTickets() {
 	// Test data
 	idempotencyKey := uuid.NewString()
 	ticketID := uuid.NewString()
+	bookingId := uuid.NewString()
 	customerEmail := "test1@example.com"
 	status := "confirmed"
 	amount := "100.00"
@@ -162,6 +172,7 @@ func (suite *ComponentTestSuite) TestIdempotencyConfirmedTickets() {
 					Amount:   amount,
 					Currency: currency,
 				},
+				BookingID: bookingId,
 			},
 		},
 	}
@@ -170,19 +181,27 @@ func (suite *ComponentTestSuite) TestIdempotencyConfirmedTickets() {
 	var filesCallCount atomic.Int32
 
 	suite.receiptsMock.EXPECT().
-		IssueReceipt(gomock.Any(), domain.IssueReceiptRequest{
-			IdempotencyKey: idempotencyKey + ticketID,
-			TicketID:       ticketID,
-			Price:          domain.Money{Amount: amount, Currency: currency},
-		}).
-		Return(nil, nil).
+		IssueReceipt(
+			gomock.Any(),
+			//gomock.Any(),
+			entities.IssueReceiptRequest{
+				IdempotencyKey: idempotencyKey + ticketID,
+				TicketID:       ticketID,
+				Price:          entities.Money{Amount: amount, Currency: currency},
+			},
+		).
+		Return(&entities.IssueReceiptResponse{
+			ReceiptNumber: "123",
+			IssuedAt:      time.Now(),
+		}, nil).
 		Times(2).
-		Do(func(context.Context, domain.IssueReceiptRequest) {
+		Do(func(ctx context.Context, e entities.IssueReceiptRequest) {
+			fmt.Println("Called IssueReceipt with idempotency key: " + e.IdempotencyKey)
 			receiptsCallCount.Add(1)
 		})
 
 	suite.spreadsheetsMock.EXPECT().
-		AppendRow(gomock.Any(), domain.AppendToTrackerRequest{
+		AppendRow(gomock.Any(), entities.AppendToTrackerRequest{
 			SpreadsheetName: "tickets-to-print",
 			Rows: []string{
 				ticketID,
@@ -193,7 +212,7 @@ func (suite *ComponentTestSuite) TestIdempotencyConfirmedTickets() {
 		}).
 		Return(nil).
 		Times(2).
-		Do(func(context.Context, domain.AppendToTrackerRequest) {
+		Do(func(context.Context, entities.AppendToTrackerRequest) {
 			spreadsheetsCallCount.Add(1)
 		})
 
@@ -228,6 +247,7 @@ func (suite *ComponentTestSuite) TestIdempotencyConfirmedTickets() {
 func (suite *ComponentTestSuite) TestCancelledTickets() {
 	// Test data
 	ticketID := uuid.NewString()
+	bookingID := uuid.NewString()
 	customerEmail := "test1@example.com"
 	status := "cancelled"
 	amount := "100.00"
@@ -242,13 +262,14 @@ func (suite *ComponentTestSuite) TestCancelledTickets() {
 					Amount:   amount,
 					Currency: currency,
 				},
+				BookingID: bookingID,
 			},
 		},
 	}
 	var spreadsheetsCallCount atomic.Int32
 
 	suite.spreadsheetsMock.EXPECT().
-		AppendRow(gomock.Any(), domain.AppendToTrackerRequest{
+		AppendRow(gomock.Any(), entities.AppendToTrackerRequest{
 			SpreadsheetName: "tickets-to-refund",
 			Rows: []string{
 				ticketID,
@@ -259,7 +280,7 @@ func (suite *ComponentTestSuite) TestCancelledTickets() {
 		}).
 		Return(nil).
 		Times(1).
-		Do(func(context.Context, domain.AppendToTrackerRequest) {
+		Do(func(context.Context, entities.AppendToTrackerRequest) {
 			spreadsheetsCallCount.Add(1)
 		})
 

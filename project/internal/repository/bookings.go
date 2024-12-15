@@ -6,7 +6,7 @@ import (
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	domain "tickets/internal/domain/bookings"
+	"tickets/internal/entities"
 )
 
 type BookingsRepo struct {
@@ -24,7 +24,7 @@ func NewBookingsRepo(
 	}
 }
 
-func (r *BookingsRepo) CreateBooking(ctx context.Context, booking domain.Booking) (uuid.UUID, error) {
+func (r *BookingsRepo) CreateBooking(ctx context.Context, booking entities.Booking) (uuid.UUID, error) {
 	var id uuid.UUID
 
 	query := `

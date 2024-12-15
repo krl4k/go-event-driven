@@ -7,7 +7,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	domain "tickets/internal/domain/tickets"
+	entities "tickets/internal/entities"
 
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
@@ -37,7 +37,7 @@ func (m *MockTicketsRepository) EXPECT() *MockTicketsRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockTicketsRepository) Create(arg0 context.Context, arg1 *domain.Ticket) error {
+func (m *MockTicketsRepository) Create(arg0 context.Context, arg1 *entities.Ticket) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1)
 	ret0, _ := ret[0].(error)

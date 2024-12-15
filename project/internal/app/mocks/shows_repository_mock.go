@@ -7,7 +7,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	shows "tickets/internal/domain/shows"
+	entities "tickets/internal/entities"
 
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
@@ -37,10 +37,10 @@ func (m *MockShowsRepository) EXPECT() *MockShowsRepositoryMockRecorder {
 }
 
 // GetShow mocks base method.
-func (m *MockShowsRepository) GetShow(arg0 context.Context, arg1 uuid.UUID) (*shows.Show, error) {
+func (m *MockShowsRepository) GetShow(arg0 context.Context, arg1 uuid.UUID) (*entities.Show, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetShow", arg0, arg1)
-	ret0, _ := ret[0].(*shows.Show)
+	ret0, _ := ret[0].(*entities.Show)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

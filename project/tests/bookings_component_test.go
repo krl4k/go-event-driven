@@ -15,6 +15,26 @@ import (
 )
 
 func (suite *ComponentTestSuite) TestBookTickets() {
+	//suite.receiptsMock.EXPECT().
+	//	IssueReceipt(
+	//		gomock.Any(),
+	//		gomock.Any(),
+	//	).
+	//	Return(nil, nil)
+	//
+	//suite.spreadsheetsMock.EXPECT().
+	//	AppendRow(
+	//		gomock.Any(),
+	//		gomock.Any(),
+	//	).
+	//	Return(nil)
+	//
+	//suite.filesMock.EXPECT().Upload(
+	//	gomock.Any(),
+	//	gomock.Any(),
+	//	gomock.Any(),
+	//).Return(nil).Times(1)
+
 	showID := uuid.New()
 	_, err := suite.db.ExecContext(suite.ctx, `
        INSERT INTO shows (

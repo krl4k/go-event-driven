@@ -6,7 +6,7 @@ import (
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients/spreadsheets"
 	"net/http"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 )
 
 type SpreadsheetsClient struct {
@@ -19,7 +19,7 @@ func NewSpreadsheetsClient(clients *clients.Clients) SpreadsheetsClient {
 	}
 }
 
-func (c SpreadsheetsClient) AppendRow(ctx context.Context, request domain.AppendToTrackerRequest) error {
+func (c SpreadsheetsClient) AppendRow(ctx context.Context, request entities.AppendToTrackerRequest) error {
 	req := spreadsheets.PostSheetsSheetRowsJSONRequestBody{
 		Columns: request.Rows,
 	}

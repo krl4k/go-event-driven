@@ -28,9 +28,9 @@ func NewForwarder(
 			SchemaAdapter:  watermillSQL.DefaultPostgreSQLSchema{},
 			OffsetsAdapter: watermillSQL.DefaultPostgreSQLOffsetsAdapter{},
 			// todo setup through config. for tests should be different values
-			PollInterval:   100 * time.Millisecond,
-			ResendInterval: 100 * time.Millisecond,
-			RetryInterval:  100 * time.Millisecond,
+			PollInterval:   500 * time.Millisecond,
+			ResendInterval: 500 * time.Millisecond,
+			RetryInterval:  500 * time.Millisecond,
 		},
 		logger,
 	)

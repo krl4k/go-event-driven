@@ -7,7 +7,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	domain "tickets/internal/domain/tickets"
+	entities "tickets/internal/entities"
 
 	gomock "github.com/golang/mock/gomock"
 )
@@ -36,10 +36,10 @@ func (m *MockReceiptsService) EXPECT() *MockReceiptsServiceMockRecorder {
 }
 
 // IssueReceipt mocks base method.
-func (m *MockReceiptsService) IssueReceipt(arg0 context.Context, arg1 domain.IssueReceiptRequest) (*domain.IssueReceiptResponse, error) {
+func (m *MockReceiptsService) IssueReceipt(arg0 context.Context, arg1 entities.IssueReceiptRequest) (*entities.IssueReceiptResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IssueReceipt", arg0, arg1)
-	ret0, _ := ret[0].(*domain.IssueReceiptResponse)
+	ret0, _ := ret[0].(*entities.IssueReceiptResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

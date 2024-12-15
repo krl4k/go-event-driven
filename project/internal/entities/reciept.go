@@ -1,6 +1,8 @@
-package domain
+package entities
 
-import "time"
+import (
+	"time"
+)
 
 type IssueReceiptRequest struct {
 	IdempotencyKey string `json:"idempotency_key"`

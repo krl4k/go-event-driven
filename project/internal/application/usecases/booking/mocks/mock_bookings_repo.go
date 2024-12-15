@@ -7,7 +7,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
-	bookings "tickets/internal/domain/bookings"
+	entities "tickets/internal/entities"
 
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
@@ -37,7 +37,7 @@ func (m *MockBookingsRepo) EXPECT() *MockBookingsRepoMockRecorder {
 }
 
 // CreateBooking mocks base method.
-func (m *MockBookingsRepo) CreateBooking(arg0 context.Context, arg1 bookings.Booking) (uuid.UUID, error) {
+func (m *MockBookingsRepo) CreateBooking(arg0 context.Context, arg1 entities.Booking) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateBooking", arg0, arg1)
 	ret0, _ := ret[0].(uuid.UUID)

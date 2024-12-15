@@ -3,19 +3,18 @@ package app
 import (
 	"context"
 	"github.com/google/uuid"
-	sdomain "tickets/internal/domain/shows"
-	tdomain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 	"tickets/internal/infrastructure/clients"
 )
 
 //go:generate mockgen -destination=mocks/spreadsheets_service_mock.go -package=mocks . SpreadsheetsService
 type SpreadsheetsService interface {
-	AppendRow(ctx context.Context, req tdomain.AppendToTrackerRequest) error
+	AppendRow(ctx context.Context, req entities.AppendToTrackerRequest) error
 }
 
 //go:generate mockgen -destination=mocks/receipts_service_mock.go -package=mocks . ReceiptsService
 type ReceiptsService interface {
-	IssueReceipt(ctx context.Context, request tdomain.IssueReceiptRequest) (*tdomain.IssueReceiptResponse, error)
+	IssueReceipt(ctx context.Context, request entities.IssueReceiptRequest) (*entities.IssueReceiptResponse, error)
 	VoidReceipt(ctx context.Context, ticketID, idempotencyKey string) error
 }
 
@@ -31,13 +30,13 @@ type FileStorageService interface {
 
 //go:generate mockgen -destination=mocks/tickets_repository_mock.go -package=mocks . TicketsRepository
 type TicketsRepository interface {
-	Create(ctx context.Context, t *tdomain.Ticket) error
+	Create(ctx context.Context, t *entities.Ticket) error
 	Delete(ctx context.Context, ticketID uuid.UUID) error
 }
 
 //go:generate mockgen -destination=mocks/shows_repository_mock.go -package=mocks . ShowsRepository
 type ShowsRepository interface {
-	GetShow(ctx context.Context, id uuid.UUID) (*sdomain.Show, error)
+	GetShow(ctx context.Context, id uuid.UUID) (*entities.Show, error)
 }
 
 //go:generate mockgen -destination=mocks/payments_service_mock.go -package=mocks . PaymentsService

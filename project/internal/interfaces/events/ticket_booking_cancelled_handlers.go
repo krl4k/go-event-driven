@@ -6,13 +6,13 @@ import (
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/google/uuid"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 )
 
 func (h *Handler) RefundTicketHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"refund_ticket_handler",
-		func(ctx context.Context, payload *domain.TicketBookingCanceled_v1) error {
+		func(ctx context.Context, payload *entities.TicketBookingCanceled_v1) error {
 			log.FromContext(ctx).Info("Refunding ticket")
 
 			if payload.Price.Currency == "" {
@@ -20,7 +20,7 @@ func (h *Handler) RefundTicketHandler() cqrs.EventHandler {
 			}
 			return h.spreadsheetsClient.AppendRow(
 				ctx,
-				domain.AppendToTrackerRequest{
+				entities.AppendToTrackerRequest{
 					SpreadsheetName: "tickets-to-refund",
 					Rows: []string{
 						payload.TicketId,
@@ -37,7 +37,7 @@ func (h *Handler) RefundTicketHandler() cqrs.EventHandler {
 func (h *Handler) RemoveTicketsHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"remove_tickets_handler",
-		func(ctx context.Context, payload *domain.TicketBookingCanceled_v1) error {
+		func(ctx context.Context, payload *entities.TicketBookingCanceled_v1) error {
 			log.FromContext(ctx).Info("Removing ticket")
 
 			id, err := uuid.Parse(payload.TicketId)

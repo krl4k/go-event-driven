@@ -4,7 +4,7 @@ import (
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/labstack/echo/v4"
 	"net/http"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 	"tickets/internal/idempotency"
 )
 
@@ -39,13 +39,13 @@ func (s *Server) TicketsStatusHandler(c echo.Context) error {
 
 	ctx = idempotency.WithKey(ctx, idempotencyKey)
 
-	tickets := make([]domain.Ticket, 0, len(request.Tickets))
+	tickets := make([]entities.Ticket, 0, len(request.Tickets))
 	for _, ticket := range request.Tickets {
-		tickets = append(tickets, domain.Ticket{
+		tickets = append(tickets, entities.Ticket{
 			TicketId:      ticket.TicketId,
 			Status:        ticket.Status,
 			CustomerEmail: ticket.CustomerEmail,
-			Price: domain.Money{
+			Price: entities.Money{
 				Amount:   ticket.Price.Amount,
 				Currency: ticket.Price.Currency,
 			},

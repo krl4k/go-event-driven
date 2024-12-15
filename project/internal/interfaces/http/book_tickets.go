@@ -7,7 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 	"net/http"
-	domain "tickets/internal/domain/bookings"
+	"tickets/internal/entities"
 )
 
 type BookTicketsRequest struct {
@@ -33,7 +33,7 @@ func (s *Server) BookTicketsHandler(c echo.Context) error {
 	pgErr := &pq.Error{}
 	for i := 0; i < 5; i++ {
 		bookingID, err = s.bookingsService.BookTickets(ctx,
-			domain.Booking{
+			entities.Booking{
 				ShowId:          request.ShowId,
 				NumberOfTickets: request.NumberOfTickets,
 				CustomerEmail:   request.CustomerEmail,
@@ -47,7 +47,7 @@ func (s *Server) BookTicketsHandler(c echo.Context) error {
 		break
 	}
 	if err != nil {
-		if errors.Is(err, domain.ErrNotEnoughTickets) {
+		if errors.Is(err, entities.ErrNotEnoughTickets) {
 			log.FromContext(ctx).Error("failed to book tickets", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{
 				"reason": "Not enough tickets available",

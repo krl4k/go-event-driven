@@ -1,4 +1,4 @@
-package domain
+package entities
 
 type Ticket struct {
 	TicketId      string `json:"ticket_id"`

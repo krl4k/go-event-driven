@@ -6,7 +6,7 @@ import (
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	domain "tickets/internal/domain/shows"
+	"tickets/internal/entities"
 )
 
 type ShowsRepo struct {
@@ -24,7 +24,7 @@ func NewShowsRepo(
 	}
 }
 
-func (r *ShowsRepo) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID, error) {
+func (r *ShowsRepo) CreateShow(ctx context.Context, show entities.Show) (uuid.UUID, error) {
 	var id uuid.UUID
 
 	query := `
@@ -50,8 +50,8 @@ func (r *ShowsRepo) CreateShow(ctx context.Context, show domain.Show) (uuid.UUID
 	return id, nil
 }
 
-func (r *ShowsRepo) GetShow(ctx context.Context, id uuid.UUID) (*domain.Show, error) {
-	var show domain.Show
+func (r *ShowsRepo) GetShow(ctx context.Context, id uuid.UUID) (*entities.Show, error) {
+	var show entities.Show
 
 	query := `
 	   SELECT

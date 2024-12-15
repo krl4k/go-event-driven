@@ -5,7 +5,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
-	"tickets/internal/domain"
+	"tickets/internal/entities"
 )
 
 func NewEventBus(
@@ -16,7 +16,7 @@ func NewEventBus(
 		pub,
 		cqrs.EventBusConfig{
 			GeneratePublishTopic: func(params cqrs.GenerateEventPublishTopicParams) (string, error) {
-				event, ok := params.Event.(domain.Event)
+				event, ok := params.Event.(entities.Event)
 				if !ok {
 					return "", fmt.Errorf("invalid event type: %T doesn't implement entities.Event", params.Event)
 				}

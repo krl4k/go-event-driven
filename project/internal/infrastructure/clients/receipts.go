@@ -7,7 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients/receipts"
 	"net/http"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 )
 
 type ReceiptsClient struct {
@@ -20,7 +20,7 @@ func NewReceiptsClient(clients *clients.Clients) ReceiptsClient {
 	}
 }
 
-func (c ReceiptsClient) IssueReceipt(ctx context.Context, request domain.IssueReceiptRequest) (*domain.IssueReceiptResponse, error) {
+func (c ReceiptsClient) IssueReceipt(ctx context.Context, request entities.IssueReceiptRequest) (*entities.IssueReceiptResponse, error) {
 	body := receipts.PutReceiptsJSONRequestBody{
 		IdempotencyKey: &request.IdempotencyKey,
 		TicketId:       request.TicketID,
@@ -38,7 +38,7 @@ func (c ReceiptsClient) IssueReceipt(ctx context.Context, request domain.IssueRe
 		return nil, fmt.Errorf("unexpected status code: %v", receiptsResp.StatusCode())
 	}
 
-	return &domain.IssueReceiptResponse{
+	return &entities.IssueReceiptResponse{
 		ReceiptNumber: receiptsResp.JSON200.Number,
 		IssuedAt:      receiptsResp.JSON200.IssuedAt,
 	}, nil

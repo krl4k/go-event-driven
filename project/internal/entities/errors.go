@@ -1,4 +1,4 @@
-package bookings
+package entities
 
 import "fmt"
 

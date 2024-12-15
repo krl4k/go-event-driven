@@ -10,7 +10,7 @@ import (
 	"os"
 	"sync"
 	"testing"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 	"tickets/internal/repository"
 )
 
@@ -56,10 +56,10 @@ func TestTicketsRepo_Create_Integration(t *testing.T) {
 
 	t.Run("successful creation and idempotency", func(t *testing.T) {
 		ticketID := uuid.New()
-		ticket := &domain.Ticket{
+		ticket := &entities.Ticket{
 			TicketId:      ticketID.String(),
 			CustomerEmail: "test@example.com",
-			Price: domain.Money{
+			Price: entities.Money{
 				Amount:   "100.00",
 				Currency: "USD",
 			},
@@ -85,7 +85,7 @@ func TestTicketsRepo_Create_Integration(t *testing.T) {
 		assert.Equal(t, 1, count)
 
 		// Verify all fields were saved correctly
-		var savedTicket domain.Ticket
+		var savedTicket entities.Ticket
 		err = getDb().QueryRow(`
             SELECT ticket_id, price_amount, price_currency, customer_email 
             FROM tickets 
@@ -105,10 +105,10 @@ func TestTicketsRepo_Create_Integration(t *testing.T) {
 	})
 
 	t.Run("invalid ticket data", func(t *testing.T) {
-		invalidTicket := &domain.Ticket{
+		invalidTicket := &entities.Ticket{
 			TicketId:      "invalid-uuid",
 			CustomerEmail: "test@example.com",
-			Price: domain.Money{
+			Price: entities.Money{
 				Amount:   "100.00",
 				Currency: "USD",
 			},
@@ -116,15 +116,15 @@ func TestTicketsRepo_Create_Integration(t *testing.T) {
 
 		err := repo.Create(ctx, invalidTicket)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to convert domain to model")
+		assert.Contains(t, err.Error(), "failed to convert entities to model")
 	})
 
 	t.Run("concurrent creations", func(t *testing.T) {
 		ticketID := uuid.New()
-		ticket := &domain.Ticket{
+		ticket := &entities.Ticket{
 			TicketId:      ticketID.String(),
 			CustomerEmail: "concurrent@example.com",
-			Price: domain.Money{
+			Price: entities.Money{
 				Amount:   "200.00",
 				Currency: "EUR",
 			},

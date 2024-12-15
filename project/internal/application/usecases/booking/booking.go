@@ -13,24 +13,21 @@ import (
 	"github.com/avito-tech/go-transaction-manager/trm/v2/settings"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"tickets/internal/domain"
+	"tickets/internal/entities"
 	"tickets/internal/interfaces/events"
 	"tickets/internal/outbox"
 	"time"
-
-	bdomain "tickets/internal/domain/bookings"
-	sdomain "tickets/internal/domain/shows"
 )
 
 //go:generate mockgen -destination=mocks/mock_bookings_repo.go -package=mocks tickets/internal/application/usecases/booking BookingsRepo
 type BookingsRepo interface {
-	CreateBooking(ctx context.Context, booking bdomain.Booking) (uuid.UUID, error)
+	CreateBooking(ctx context.Context, booking entities.Booking) (uuid.UUID, error)
 	GetBookingsCountByShowID(ctx context.Context, showID uuid.UUID) (int64, error)
 }
 
 //go:generate mockgen -destination=mocks/mock_shows_repo.go -package=mocks tickets/internal/application/usecases/booking ShowsRepo
 type ShowsRepo interface {
-	GetShow(ctx context.Context, id uuid.UUID) (*sdomain.Show, error)
+	GetShow(ctx context.Context, id uuid.UUID) (*entities.Show, error)
 }
 
 type BookTicketsUsecase struct {
@@ -80,7 +77,7 @@ func WithRetry(attempts int, f func(context.Context) error) func(context.Context
 	}
 }
 
-func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Booking) (uuid.UUID, error) {
+func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking entities.Booking) (uuid.UUID, error) {
 	var id uuid.UUID
 	var err error
 	err = s.trManager.DoWithSettings(
@@ -90,7 +87,7 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Bo
 			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelSerializable}),
 		),
 		func(ctx context.Context) error {
-			var show *sdomain.Show
+			var show *entities.Show
 			show, err = s.showsRepo.GetShow(ctx, booking.ShowId)
 			if err != nil {
 				return fmt.Errorf("failed to get show: %w", err)
@@ -105,7 +102,7 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Bo
 			log.FromContext(ctx).Info("bookings count: ", bookingsCount)
 
 			if int(bookingsCount)+booking.NumberOfTickets > show.NumberOfTickets {
-				return fmt.Errorf("tickets available: %d, requested: %d, %w", show.NumberOfTickets-int(bookingsCount), booking.NumberOfTickets, bdomain.ErrNotEnoughTickets)
+				return fmt.Errorf("tickets available: %d, requested: %d, %w", show.NumberOfTickets-int(bookingsCount), booking.NumberOfTickets, entities.ErrNotEnoughTickets)
 			}
 
 			id, err = s.bookingRepo.CreateBooking(ctx, booking)
@@ -129,8 +126,8 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking bdomain.Bo
 			}
 
 			log.FromContext(ctx).Info("publishing booking made event")
-			return eb.Publish(ctx, bdomain.BookingMade_v1{
-				Header:          domain.NewEventHeader(),
+			return eb.Publish(ctx, entities.BookingMade_v1{
+				Header:          entities.NewEventHeader(),
 				BookingID:       id,
 				NumberOfTickets: booking.NumberOfTickets,
 				CustomerEmail:   booking.CustomerEmail,

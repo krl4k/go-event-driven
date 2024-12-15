@@ -9,11 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"tickets/internal/entities"
 	"tickets/internal/repository"
 	"time"
-
-	bdomain "tickets/internal/domain/bookings"
-	tdomain "tickets/internal/domain/tickets"
 )
 
 func setupTestReadModelOpsDB(t *testing.T) {
@@ -45,7 +43,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		bookingID := uuid.New()
 		bookedAt := time.Now().UTC()
 
-		event := &bdomain.BookingMade{
+		event := &bentities.BookingMade{
 			BookingID: bookingID,
 			BookedAt:  bookedAt,
 		}
@@ -72,18 +70,19 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		bookedAt := time.Now().UTC()
 
 		// Create initial booking
-		err := repo.OnBookingMadeEvent(ctx, &bdomain.BookingMade{
+		err := repo.OnBookingMadeEvent(ctx, &bentities.BookingMade{
 			BookingID: bookingID,
 			BookedAt:  bookedAt,
 		})
 		require.NoError(t, err)
 
 		// Confirm ticket booking
-		event := &tdomain.TicketBookingConfirmed_v1{
+		event := &entities.
+			TicketBookingConfirmed_v1{
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			CustomerEmail: "test@example.com",
-			Price: tdomain.Money{
+			Price: entities.Money{
 				Amount:   "100.00",
 				Currency: "USD",
 			},
@@ -110,13 +109,13 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		issuedAt := time.Now().UTC()
 
 		// Create initial booking
-		err := repo.OnBookingMadeEvent(ctx, &bdomain.BookingMade{
+		err := repo.OnBookingMadeEvent(ctx, &bentities.BookingMade{
 			BookingID: bookingID,
 			BookedAt:  time.Now().UTC(),
 		})
 		require.NoError(t, err)
 
-		event := &tdomain.TicketReceiptIssued_v1{
+		event := &entities.TicketReceiptIssued_v1{
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			ReceiptNumber: "REC123",
@@ -140,23 +139,23 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		ticketID := uuid.New()
 
 		// Create initial booking
-		err := repo.OnBookingMadeEvent(ctx, &bdomain.BookingMade{
+		err := repo.OnBookingMadeEvent(ctx, &bentities.BookingMade{
 			BookingID: bookingID,
 			BookedAt:  time.Now().UTC(),
 		})
 		require.NoError(t, err)
 
 		// Confirm ticket first
-		err = repo.OnTicketBookingConfirmedEvent(ctx, &tdomain.TicketBookingConfirmed_v1{
+		err = repo.OnTicketBookingConfirmedEvent(ctx, &entities.TicketBookingConfirmed_v1{
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			CustomerEmail: "test@example.com",
-			Price:         tdomain.Money{Amount: "100.00", Currency: "USD"},
+			Price:         entities.Money{Amount: "100.00", Currency: "USD"},
 		})
 		require.NoError(t, err)
 
 		// Refund ticket
-		event := &tdomain.RefundTicket{
+		event := &entities.RefundTicket{
 			TicketId: ticketID.String(),
 		}
 
@@ -179,7 +178,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 	//
 	//	// Create two bookings
 	//	for _, id := range []uuid.UUID{booking1ID, booking2ID} {
-	//		err := repo.OnBookingMadeEvent(ctx, &bdomain.BookingMade{
+	//		err := repo.OnBookingMadeEvent(ctx, &bentities.BookingMade{
 	//			BookingID: id,
 	//			BookedAt:  time.Now().UTC(),
 	//		})

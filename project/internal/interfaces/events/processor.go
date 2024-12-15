@@ -7,7 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/redis/go-redis/v9"
-	"tickets/internal/domain"
+	"tickets/internal/entities"
 )
 
 func NewEventProcessor(
@@ -21,7 +21,7 @@ func NewEventProcessor(
 		cqrs.EventProcessorConfig{
 			GenerateSubscribeTopic: func(params cqrs.EventProcessorGenerateSubscribeTopicParams) (string, error) {
 				handlerEvent := params.EventHandler.NewEvent()
-				event, ok := handlerEvent.(domain.Event)
+				event, ok := handlerEvent.(entities.Event)
 				if !ok {
 					return "", fmt.Errorf("invalid event type: %T doesn't implement entities.Event", handlerEvent)
 				}

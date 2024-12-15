@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"strconv"
-	domain "tickets/internal/domain/tickets"
+	"tickets/internal/entities"
 	"time"
 )
 
@@ -27,7 +27,7 @@ func NewTicketsRepo(db *sqlx.DB) *TicketsRepo {
 	return &TicketsRepo{db: db}
 }
 
-func (r *TicketsRepo) Create(ctx context.Context, t *domain.Ticket) error {
+func (r *TicketsRepo) Create(ctx context.Context, t *entities.Ticket) error {
 	query := `
         INSERT INTO tickets (
             ticket_id, price_amount, price_currency, customer_email
@@ -37,7 +37,7 @@ func (r *TicketsRepo) Create(ctx context.Context, t *domain.Ticket) error {
 
 	ticket, err := domainToModel(t)
 	if err != nil {
-		return fmt.Errorf("failed to convert domain to model: %w", err)
+		return fmt.Errorf("failed to convert entities to model: %w", err)
 	}
 
 	_, err = r.db.ExecContext(ctx, query,
@@ -71,7 +71,7 @@ func (r *TicketsRepo) Delete(ctx context.Context, ticketID uuid.UUID) error {
 	return err
 }
 
-func (r *TicketsRepo) List(ctx context.Context) ([]domain.Ticket, error) {
+func (r *TicketsRepo) List(ctx context.Context) ([]entities.Ticket, error) {
 	var tickets []Ticket
 	query := `
 		SELECT ticket_id, price_amount, price_currency, customer_email
@@ -83,7 +83,7 @@ func (r *TicketsRepo) List(ctx context.Context) ([]domain.Ticket, error) {
 		return nil, err
 	}
 
-	convertedTickets := make([]domain.Ticket, 0, len(tickets))
+	convertedTickets := make([]entities.Ticket, 0, len(tickets))
 	for _, ticket := range tickets {
 		convertedTickets = append(convertedTickets, modelToDomain(ticket))
 	}
@@ -91,18 +91,18 @@ func (r *TicketsRepo) List(ctx context.Context) ([]domain.Ticket, error) {
 	return convertedTickets, nil
 }
 
-func modelToDomain(ticket Ticket) domain.Ticket {
-	return domain.Ticket{
+func modelToDomain(ticket Ticket) entities.Ticket {
+	return entities.Ticket{
 		TicketId:      ticket.ID.String(),
 		CustomerEmail: ticket.CustomerEmail,
-		Price: domain.Money{
+		Price: entities.Money{
 			Amount:   strconv.FormatFloat(ticket.PriceAmount, 'f', 2, 64),
 			Currency: ticket.PriceCurrency,
 		},
 	}
 }
 
-func domainToModel(ticket *domain.Ticket) (*Ticket, error) {
+func domainToModel(ticket *entities.Ticket) (*Ticket, error) {
 	id, err := uuid.Parse(ticket.TicketId)
 	if err != nil {
 		return nil, err

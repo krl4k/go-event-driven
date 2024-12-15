@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
-	domain "tickets/internal/domain/bookings"
+	"tickets/internal/entities"
 	"tickets/internal/infrastructure/clients"
 )
 
 func (h *Handler) TicketBookingHandler() cqrs.EventHandler {
 	return cqrs.NewEventHandler(
 		"ticket_booking_handler",
-		func(ctx context.Context, payload *domain.BookingMade_v1) error {
+		func(ctx context.Context, payload *entities.BookingMade_v1) error {
 			log.FromContext(ctx).Info("Booking made handler")
 
 			show, err := h.showsRepository.GetShow(ctx, payload.ShowID)

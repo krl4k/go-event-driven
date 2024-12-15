@@ -20,7 +20,7 @@ import (
 	"tickets/internal/application/usecases/booking"
 	"tickets/internal/application/usecases/shows"
 	"tickets/internal/application/usecases/tickets"
-	"tickets/internal/domain"
+	"tickets/internal/entities"
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/commands"
 	"tickets/internal/interfaces/events"
@@ -158,7 +158,7 @@ func NewApp(
 		saverSub,
 		func(msg *message.Message) error {
 			type Event struct {
-				Header domain.EventHeader `json:"header"`
+				Header entities.EventHeader `json:"header"`
 			}
 
 			var event Event
