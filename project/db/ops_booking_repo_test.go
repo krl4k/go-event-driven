@@ -4,6 +4,7 @@ import (
 	"context"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"tickets/internal/entities"
 	"tickets/internal/repository"
+	"tickets/internal/repository/mocks"
 	"time"
 )
 
@@ -35,15 +37,26 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 	setupTestReadModelOpsDB(t)
 	t.Cleanup(func() { cleanupTestDB(t) })
 
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	publisherMock := mocks.NewMockPublisher(mockCtrl)
 	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
-	repo := repository.NewOpsBookingReadModelRepo(getDb(), trmsqlx.DefaultCtxGetter, trManager)
+	repo := repository.NewOpsBookingReadModelRepo(
+		getDb(),
+		trmsqlx.DefaultCtxGetter,
+		trManager,
+		publisherMock,
+	)
 	ctx := context.Background()
+
+	publisherMock.EXPECT().Publish(gomock.Any(), gomock.Any()).AnyTimes()
 
 	t.Run("handle BookingMade event", func(t *testing.T) {
 		bookingID := uuid.New()
 		bookedAt := time.Now().UTC()
 
-		event := &bentities.BookingMade{
+		event := &entities.BookingMade_v1{
 			BookingID: bookingID,
 			BookedAt:  bookedAt,
 		}
@@ -70,7 +83,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		bookedAt := time.Now().UTC()
 
 		// Create initial booking
-		err := repo.OnBookingMadeEvent(ctx, &bentities.BookingMade{
+		err := repo.OnBookingMadeEvent(ctx, &entities.BookingMade_v1{
 			BookingID: bookingID,
 			BookedAt:  bookedAt,
 		})
@@ -79,6 +92,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		// Confirm ticket booking
 		event := &entities.
 			TicketBookingConfirmed_v1{
+			Header:        entities.NewEventHeader(),
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			CustomerEmail: "test@example.com",
@@ -100,7 +114,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		assert.Equal(t, "100.00", ticket.PriceAmount)
 		assert.Equal(t, "USD", ticket.PriceCurrency)
 		assert.Equal(t, "test@example.com", ticket.CustomerEmail)
-		assert.Equal(t, "confirmed", ticket.Status)
+		assert.NotNil(t, ticket.ConfirmedAt)
 	})
 
 	t.Run("handle TicketReceiptIssued_v1 event", func(t *testing.T) {
@@ -109,10 +123,23 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		issuedAt := time.Now().UTC()
 
 		// Create initial booking
-		err := repo.OnBookingMadeEvent(ctx, &bentities.BookingMade{
+		err := repo.OnBookingMadeEvent(ctx, &entities.BookingMade_v1{
 			BookingID: bookingID,
 			BookedAt:  time.Now().UTC(),
 		})
+		require.NoError(t, err)
+
+		err = repo.OnTicketBookingConfirmedEvent(ctx, &entities.TicketBookingConfirmed_v1{
+			Header:        entities.NewEventHeader(),
+			BookingId:     bookingID.String(),
+			TicketId:      ticketID.String(),
+			CustomerEmail: "test@example.com",
+			Price: entities.Money{
+				Amount:   "100.00",
+				Currency: "USD",
+			},
+		})
+
 		require.NoError(t, err)
 
 		event := &entities.TicketReceiptIssued_v1{
@@ -139,7 +166,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		ticketID := uuid.New()
 
 		// Create initial booking
-		err := repo.OnBookingMadeEvent(ctx, &bentities.BookingMade{
+		err := repo.OnBookingMadeEvent(ctx, &entities.BookingMade_v1{
 			BookingID: bookingID,
 			BookedAt:  time.Now().UTC(),
 		})
@@ -147,6 +174,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 
 		// Confirm ticket first
 		err = repo.OnTicketBookingConfirmedEvent(ctx, &entities.TicketBookingConfirmed_v1{
+			Header:        entities.NewEventHeader(),
 			BookingId:     bookingID.String(),
 			TicketId:      ticketID.String(),
 			CustomerEmail: "test@example.com",
@@ -155,8 +183,9 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Refund ticket
-		event := &entities.RefundTicket{
-			TicketId: ticketID.String(),
+		event := &entities.TicketRefunded_v1{
+			Header:   entities.NewEventHeader(),
+			TicketID: ticketID.String(),
 		}
 
 		err = repo.OnTicketRefundedEvent(ctx, event)
@@ -167,7 +196,7 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 
 		ticket, exists := booking.Tickets[ticketID.String()]
 		require.True(t, exists)
-		assert.Equal(t, "refunded", ticket.Status)
+		assert.NotNil(t, ticket.RefundedAt)
 	})
 
 	//t.Run("GetAll returns all bookings", func(t *testing.T) {

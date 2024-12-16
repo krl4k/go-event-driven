@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
-	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	trmsql "github.com/avito-tech/go-transaction-manager/drivers/sql/v2"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	trmanager "github.com/avito-tech/go-transaction-manager/trm/v2/manager"
@@ -22,14 +21,19 @@ type OpsBookingReadModelRepo struct {
 	getter    *trmsqlx.CtxGetter
 	trManager *trmanager.Manager
 
-	eventBus *cqrs.EventBus
+	eventBus Publisher
+}
+
+//go:generate mockgen -destination=mocks/publisher_mock.go -package=mocks tickets/internal/repository Publisher
+type Publisher interface {
+	Publish(ctx context.Context, event any) error
 }
 
 func NewOpsBookingReadModelRepo(
 	db *sqlx.DB,
 	getter *trmsqlx.CtxGetter,
 	trManager *trmanager.Manager,
-	eventBus *cqrs.EventBus,
+	eventBus Publisher,
 ) *OpsBookingReadModelRepo {
 	return &OpsBookingReadModelRepo{
 		db:        db,
