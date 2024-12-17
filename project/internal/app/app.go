@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	_ "github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
@@ -34,12 +36,14 @@ import (
 )
 
 type App struct {
-	watermillLogger watermill.LoggerAdapter
-	logger          zerolog.Logger
-	router          *message.Router
-	srv             *http.Server
-	db              *sqlx.DB
-	forwarder       *outbox.Forwarder
+	watermillLogger         watermill.LoggerAdapter
+	logger                  zerolog.Logger
+	router                  *message.Router
+	srv                     *http.Server
+	db                      *sqlx.DB
+	forwarder               *outbox.Forwarder
+	eventsRepo              *repository.EventsRepository
+	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo
 }
 
 func NewApp(
@@ -184,10 +188,13 @@ func NewApp(
 
 			err = eventsRepo.SaveEvent(
 				msg.Context(),
-				id,
-				publishedAt,
-				eventName,
-				msg.Payload)
+				entities.DatalakeEvent{
+					Id:          id,
+					PublishedAt: publishedAt,
+					EventName:   eventName,
+					Payload:     msg.Payload,
+				},
+			)
 			if err != nil {
 				return fmt.Errorf("failed to save event %s: %w", eventName, err)
 			}
@@ -262,12 +269,14 @@ func NewApp(
 	}
 
 	return &App{
-		watermillLogger: watermillLogger,
-		logger:          zerolog.New(os.Stdout),
-		router:          router,
-		srv:             srv,
-		db:              db,
-		forwarder:       forwarder,
+		watermillLogger:         watermillLogger,
+		logger:                  zerolog.New(os.Stdout),
+		router:                  router,
+		srv:                     srv,
+		db:                      db,
+		forwarder:               forwarder,
+		eventsRepo:              eventsRepo,
+		opsBookingReadModelRepo: opsBookingReadModelRepo,
 	}, nil
 }
 
@@ -301,6 +310,15 @@ func (a *App) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
+		a.logger.Info().Msg("migrating events")
+		err := a.MigrateEvents()
+		if err != nil {
+			a.logger.Err(err).Msg("failed to migrate events")
+		}
+		return err
+	})
+
+	g.Go(func() error {
 		// Shut down
 		<-ctx.Done()
 
@@ -315,7 +333,102 @@ func (a *App) Run(ctx context.Context) error {
 	// Will block until all goroutines finish
 	err = g.Wait()
 	if err != nil {
-		panic(err)
+		a.logger.Err(err).Msg("error running app")
+		return err
 	}
+	return nil
+}
+
+func (a *App) MigrateEvents() error {
+	// if table not empty, migrate events
+	// if empty -> wait for events
+
+	for {
+		isEmpty, err := a.eventsRepo.IsEmpty(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to check if events table is empty: %w", err)
+		}
+
+		if !isEmpty {
+			break
+		}
+
+		log.FromContext(context.Background()).Info("Waiting for events")
+
+		time.Sleep(100 * time.Millisecond)
+
+		// get all events, type switch and save in the ops read model
+		log.FromContext(context.Background()).Info("Getting events")
+		events, err := a.eventsRepo.GetEvents(context.Background())
+		if err != nil {
+			log.FromContext(context.Background()).Info("Failed to get events: ", err)
+			return err
+		}
+
+		log.FromContext(context.Background()).Info("Migrating events, count: ", len(events))
+
+		for _, event := range events {
+			log.FromContext(context.Background()).Info("Processing event: ", event.EventName, " with payload: ", string(event.Payload))
+			switch event.EventName {
+			case "BookingMade_v0":
+				var bookingMade entities.BookingMade_v0
+				err := json.Unmarshal(event.Payload, &bookingMade)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal BookingMade_v0 event: %w", err)
+				}
+
+				err = a.opsBookingReadModelRepo.OnBookingMadeV0Event(context.Background(), &bookingMade)
+				if err != nil {
+					return fmt.Errorf("failed to handle BookingMade_v0 event: %w", err)
+				}
+			case "TicketBookingConfirmed_v0":
+				var ticketBookingConfirmed entities.TicketBookingConfirmed_v0
+				err := json.Unmarshal(event.Payload, &ticketBookingConfirmed)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal TicketBookingConfirmed_v0 event: %w", err)
+				}
+
+				err = a.opsBookingReadModelRepo.OnTicketBookingConfirmedV0Event(context.Background(), &ticketBookingConfirmed)
+				if err != nil {
+					return fmt.Errorf("failed to handle TicketBookingConfirmed_v0 event: %w", err)
+				}
+
+			case "TicketReceiptIssued_v0":
+				var ticketReceiptIssued entities.TicketReceiptIssued_v0
+				err := json.Unmarshal(event.Payload, &ticketReceiptIssued)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal TicketReceiptIssued_v0 event: %w", err)
+				}
+
+				err = a.opsBookingReadModelRepo.OnTicketReceiptIssuedV0Event(context.Background(), &ticketReceiptIssued)
+				if err != nil {
+					return fmt.Errorf("failed to handle TicketReceiptIssued_v0 event: %w", err)
+				}
+			case "TicketPrinted_v0":
+				var ticketPrinted entities.TicketPrinted_v0
+				err := json.Unmarshal(event.Payload, &ticketPrinted)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal TicketPrinted_v0 event: %w", err)
+				}
+
+				err = a.opsBookingReadModelRepo.OnTicketPrintedV0Event(context.Background(), &ticketPrinted)
+				if err != nil {
+					return fmt.Errorf("failed to handle TicketPrinted_v0 event: %w", err)
+				}
+			case "TicketRefunded_v0":
+				var ticketBookingCanceled entities.TicketRefunded_v0
+				err := json.Unmarshal(event.Payload, &ticketBookingCanceled)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal TicketRefunded_v0 event: %w", err)
+				}
+
+				err = a.opsBookingReadModelRepo.OnTicketRefundedV0Event(context.Background(), &ticketBookingCanceled)
+				if err != nil {
+					return fmt.Errorf("failed to handle TicketRefunded_v0 event: %w", err)
+				}
+			}
+		}
+	}
+
 	return nil
 }

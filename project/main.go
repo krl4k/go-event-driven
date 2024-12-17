@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
@@ -64,6 +65,6 @@ func main() {
 
 	err = a.Run(ctx)
 	if err != nil {
-		panic(err)
+		fmt.Println("Failed to run app: ", err)
 	}
 }

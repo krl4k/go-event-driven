@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"net/http"
@@ -52,6 +53,7 @@ func (s *Server) GetBookingHandler(c echo.Context) error {
 
 	booking, err := s.opsBookingReadModelRepo.GetByID(c.Request().Context(), id)
 	if err != nil {
+		log.FromContext(c.Request().Context()).Error("failed to get booking, err:", err)
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	trmsql "github.com/avito-tech/go-transaction-manager/drivers/sql/v2"
@@ -54,6 +55,9 @@ func (r *OpsBookingReadModelRepo) GetByTicketID(ctx context.Context, ticketID uu
 func (r *OpsBookingReadModelRepo) GetAll(ctx context.Context) ([]entities.OpsBooking, error) {
 	rows, err := r.db.QueryContext(ctx, "SELECT payload FROM read_model_ops_bookings")
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return []entities.OpsBooking{}, nil
+		}
 		return nil, err
 	}
 	defer rows.Close()
@@ -159,6 +163,53 @@ func (r *OpsBookingReadModelRepo) OnBookingMadeEvent(ctx context.Context, event 
 
 }
 
+func (r *OpsBookingReadModelRepo) OnBookingMadeV0Event(ctx context.Context, event *entities.BookingMade_v0) error {
+	log.FromContext(ctx).Info("OnBookingMadeEvent, event: ", *event)
+
+	return r.trManager.DoWithSettings(
+		ctx,
+		trmsql.MustSettings(
+			settings.Must(settings.WithCancelable(true)),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
+		),
+		func(ctx context.Context) error {
+			bookedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse booked at time: %w", err)
+			}
+
+			booking := &entities.OpsBooking{
+				BookingID:  event.BookingID,
+				BookedAt:   bookedAt,
+				LastUpdate: time.Now().UTC(),
+				Tickets:    nil,
+			}
+
+			payload, err := json.Marshal(booking)
+			if err != nil {
+				return err
+			}
+			res, err := r.db.ExecContext(ctx, `
+		INSERT INTO read_model_ops_bookings (booking_id, payload)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING
+	`, booking.BookingID, payload)
+			if err != nil {
+				return err
+			}
+			if rowsAffected, _ := res.RowsAffected(); rowsAffected == 0 {
+				return fmt.Errorf("booking with id %s already exists", booking.BookingID)
+			}
+
+			return r.eventBus.Publish(ctx, &entities.InternalOpsReadModelUpdated{
+				Header:    entities.NewEventHeader(),
+				BookingID: booking.BookingID,
+			})
+		},
+	)
+
+}
+
 func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedEvent(ctx context.Context, event *entities.TicketBookingConfirmed_v1) error {
 	return r.trManager.DoWithSettings(
 		ctx,
@@ -206,14 +257,49 @@ func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedEvent(ctx context.Context
 			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
 		),
 		func(ctx context.Context) error {
-			findReadModelByTicketID, err := r.findReadModelByBookingID(ctx, event.BookingId)
+			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
+			if err != nil {
+				return fmt.Errorf("OnTicketReceiptIssuedEvent. failed to find read model by booking ID: %w", err)
+			}
+
+			ticket, ok := findReadModelByBookingID.Tickets[event.TicketId]
+			if !ok {
+				return fmt.Errorf("ticket with id %s not found in booking with id %s", event.TicketId, event.BookingId)
+			}
+
+			ticket.ReceiptNumber = event.ReceiptNumber
+			ticket.ReceiptIssuedAt = event.IssuedAt
+
+			findReadModelByBookingID.Tickets[event.TicketId] = ticket
+
+			err = r.updateReadModel(ctx, findReadModelByBookingID)
+			if err != nil {
+				return fmt.Errorf("failed to update read model: %w", err)
+			}
+
+			return nil
+		},
+	)
+}
+
+func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedV0Event(ctx context.Context, event *entities.TicketReceiptIssued_v0) error {
+	log.FromContext(ctx).Info("OnTicketReceiptIssuedEvent", "event:", *event)
+
+	return r.trManager.DoWithSettings(
+		ctx,
+		trmsql.MustSettings(
+			settings.Must(settings.WithCancelable(true)),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
+		),
+		func(ctx context.Context) error {
+			findReadModelByTicketID, err := r.findReadModelByTicketID(ctx, event.TicketId)
 			if err != nil {
 				return fmt.Errorf("OnTicketReceiptIssuedEvent. failed to find read model by booking ID: %w", err)
 			}
 
 			ticket, ok := findReadModelByTicketID.Tickets[event.TicketId]
 			if !ok {
-				return fmt.Errorf("ticket with id %s not found in booking with id %s", event.TicketId, event.BookingId)
+				return fmt.Errorf("ticket with id %s not found", event.TicketId)
 			}
 
 			ticket.ReceiptNumber = event.ReceiptNumber
@@ -254,6 +340,49 @@ func (r *OpsBookingReadModelRepo) OnTicketPrintedEvent(ctx context.Context, even
 			}
 
 			ticket.PrintedAt = event.PrintedAt
+			ticket.PrintedFileName = event.FileName
+
+			findReadModelByTicketID.Tickets[event.TicketID] = ticket
+
+			err = r.updateReadModel(ctx, findReadModelByTicketID)
+			if err != nil {
+				log.FromContext(ctx).Error("failed to update read model", "error:", err)
+				return fmt.Errorf("failed to update read model: %w", err)
+			}
+
+			return nil
+		},
+	)
+}
+
+func (r *OpsBookingReadModelRepo) OnTicketPrintedV0Event(ctx context.Context, event *entities.TicketPrinted_v0) error {
+	log.FromContext(ctx).Info("OnTicketPrintedV0Event, ticketID:", event.TicketID)
+
+	return r.trManager.DoWithSettings(
+		ctx,
+		trmsql.MustSettings(
+			settings.Must(settings.WithCancelable(true)),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
+		),
+		func(ctx context.Context) error {
+			findReadModelByTicketID, err := r.findReadModelByTicketID(ctx, event.TicketID)
+			if err != nil {
+				log.FromContext(ctx).Error("OnTicketPrintedEvent. failed to find read model by ticket ID: ", event.TicketID, ", ", " error:", err)
+				return fmt.Errorf("OnTicketPrintedEvent. failed to find read model by booking ID: %w", err)
+			}
+
+			ticket, ok := findReadModelByTicketID.Tickets[event.TicketID]
+			if !ok {
+				log.FromContext(ctx).Error("ticket with id not found in booking", "ticketID:", event.TicketID)
+				return fmt.Errorf("ticket with id %s not found", event.TicketID)
+			}
+
+			printedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse printed at time: %w", err)
+			}
+
+			ticket.PrintedAt = printedAt
 			ticket.PrintedFileName = event.FileName
 
 			findReadModelByTicketID.Tickets[event.TicketID] = ticket
@@ -324,6 +453,9 @@ func (r *OpsBookingReadModelRepo) findReadModelByBookingID(
 		id,
 	).Scan(&payload)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if payload == nil {
@@ -350,6 +482,9 @@ func (r *OpsBookingReadModelRepo) findReadModelByTicketID(
 		id,
 	).Scan(&payload)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -393,4 +528,106 @@ func (r *OpsBookingReadModelRepo) unmarshalReadModelFromDB(payload []byte) (*ent
 	}
 
 	return &dbReadModel, nil
+}
+
+func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedV0Event(ctx context.Context, event *entities.TicketBookingConfirmed_v0) error {
+	return r.trManager.DoWithSettings(
+		ctx,
+		trmsql.MustSettings(
+			settings.Must(settings.WithCancelable(true)),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
+		),
+		func(ctx context.Context) error {
+			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
+			if err != nil {
+				return fmt.Errorf("OnTicketBookingConfirmedV0Event. failed to find read model by booking ID: %w", err)
+			}
+
+			ticket := findReadModelByBookingID.Tickets[event.TicketId]
+
+			confirmedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse confirmed at time: %w", err)
+			}
+
+			ticket.ConfirmedAt = confirmedAt
+			ticket.PriceAmount = event.Price.Amount
+			ticket.PriceCurrency = event.Price.Currency
+			ticket.CustomerEmail = event.CustomerEmail
+
+			findReadModelByBookingID.Tickets[event.TicketId] = ticket
+
+			err = r.updateReadModel(ctx, findReadModelByBookingID)
+			if err != nil {
+				return fmt.Errorf("failed to update read model: %w", err)
+			}
+
+			return nil
+		},
+	)
+}
+
+func (r *OpsBookingReadModelRepo) OnTicketBookingCanceledV0Event(ctx context.Context, event *entities.TicketBookingCanceled_v0) error {
+	return r.trManager.DoWithSettings(
+		ctx,
+		trmsql.MustSettings(
+			settings.Must(settings.WithCancelable(true)),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
+		),
+		func(ctx context.Context) error {
+			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
+			if err != nil {
+				return fmt.Errorf("OnTicketBookingCanceledV0Event. failed to find read model by booking ID: %w", err)
+			}
+
+			ticket := findReadModelByBookingID.Tickets[event.TicketId]
+
+			findReadModelByBookingID.Tickets[event.TicketId] = ticket
+
+			err = r.updateReadModel(ctx, findReadModelByBookingID)
+			if err != nil {
+				return fmt.Errorf("failed to update read model: %w", err)
+			}
+
+			return nil
+		},
+	)
+}
+
+func (r *OpsBookingReadModelRepo) OnTicketRefundedV0Event(ctx context.Context, event *entities.TicketRefunded_v0) error {
+	log.FromContext(ctx).Info("OnTicketRefundedV0Event", "event:", *event)
+
+	return r.trManager.DoWithSettings(
+		ctx,
+		trmsql.MustSettings(
+			settings.Must(settings.WithCancelable(true)),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
+		),
+		func(ctx context.Context) error {
+			findReadModelByTicketID, err := r.findReadModelByTicketID(ctx, event.TicketID)
+			if err != nil {
+				return fmt.Errorf("failed to find read model by ticket ID: %w", err)
+			}
+
+			ticket, ok := findReadModelByTicketID.Tickets[event.TicketID]
+			if !ok {
+				return fmt.Errorf("ticket with id %s not found", event.TicketID)
+			}
+
+			refundedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
+			if err != nil {
+				return fmt.Errorf("failed to parse refunded at time: %w", err)
+			}
+
+			ticket.RefundedAt = refundedAt
+			findReadModelByTicketID.Tickets[event.TicketID] = ticket
+
+			err = r.updateReadModel(ctx, findReadModelByTicketID)
+			if err != nil {
+				return fmt.Errorf("failed to update read model: %w", err)
+			}
+
+			return nil
+		},
+	)
 }
