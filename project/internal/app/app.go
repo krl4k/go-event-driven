@@ -9,12 +9,13 @@ import (
 	_ "github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
+	watermillSQL "github.com/ThreeDotsLabs/watermill-sql/v2/pkg/sql"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
-	"github.com/ThreeDotsLabs/watermill/message"
-	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
+	watermillMessage "github.com/ThreeDotsLabs/watermill/message"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
-	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -24,10 +25,11 @@ import (
 	"tickets/internal/application/usecases/tickets"
 	"tickets/internal/entities"
 	"tickets/internal/infrastructure/event_publisher"
-	"tickets/internal/interfaces/commands"
-	"tickets/internal/interfaces/events"
 	"tickets/internal/interfaces/http"
-	"tickets/internal/outbox"
+	"tickets/internal/interfaces/message"
+	"tickets/internal/interfaces/message/commands"
+	events "tickets/internal/interfaces/message/events"
+	outbox "tickets/internal/interfaces/message/outbox"
 	"tickets/internal/repository"
 	"time"
 
@@ -35,13 +37,21 @@ import (
 	_ "github.com/lib/pq"
 )
 
+var (
+	veryImportantCounter = promauto.NewCounter(prometheus.CounterOpts{
+		// metric will be named tickets_very_important_counter_total
+		Namespace: "tickets",
+		Name:      "very_important_counter_total",
+		Help:      "Total number of very important things processed",
+	})
+)
+
 type App struct {
 	watermillLogger         watermill.LoggerAdapter
 	logger                  zerolog.Logger
-	router                  *message.Router
+	router                  *watermillMessage.Router
 	srv                     *http.Server
 	db                      *sqlx.DB
-	forwarder               *outbox.Forwarder
 	eventsRepo              *repository.EventsRepository
 	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo
 }
@@ -57,18 +67,18 @@ func NewApp(
 	db *sqlx.DB,
 ) (*App, error) {
 	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
-	var publisher message.Publisher
-	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
+	var redisPublisher watermillMessage.Publisher
+	redisPublisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
 		Client: redisClient,
 	}, watermillLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	publisher = event_publisher.CorrelationPublisherDecorator{
-		Publisher: publisher,
+	redisPublisher = event_publisher.CorrelationPublisherDecorator{
+		Publisher: redisPublisher,
 	}
-	eventBus, err := events.NewEventBus(publisher, watermillLogger)
+	eventBus, err := events.NewEventBus(redisPublisher, watermillLogger)
 
 	ticketsRepo := repository.NewTicketsRepo(db)
 	showsRepo := repository.NewShowsRepo(db, trmsqlx.DefaultCtxGetter)
@@ -77,12 +87,7 @@ func NewApp(
 		db, trmsqlx.DefaultCtxGetter, trManager, eventBus)
 	eventsRepo := repository.NewEventsRepo(db)
 
-	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
-	if err != nil {
-		return nil, err
-	}
-
-	commandBus, err := commands.NewBus(publisher, watermillLogger)
+	commandBus, err := commands.NewBus(redisPublisher, watermillLogger)
 
 	ticketsService := tickets.NewTicketConfirmationService(eventBus, ticketsRepo)
 	showsService := shows.NewShowsService(showsRepo)
@@ -102,106 +107,33 @@ func NewApp(
 		showsService,
 		bookingsService,
 		opsBookingReadModelRepo,
-		router.IsRunning,
 	)
 
-	router.AddMiddleware(middleware.Recoverer)
-	router.AddMiddleware(events.CorrelationIDMiddleware)
-	router.AddMiddleware(events.LoggingMiddleware)
-
-	router.AddMiddleware(middleware.Retry{
-		MaxRetries:      10,
-		InitialInterval: time.Millisecond * 100,
-		MaxInterval:     time.Second,
-		Multiplier:      2,
-		Logger:          watermillLogger,
-	}.Middleware)
-
-	// skip marshalling errors before retrying
-	router.AddMiddleware(events.SkipMarshallingErrorsMiddleware)
-
-	sub, err :=
-		redisstream.NewSubscriber(redisstream.SubscriberConfig{
-			Client:        redisClient,
-			ConsumerGroup: "events_splitter",
-		}, watermillLogger)
+	redisSubscriber, err := redisstream.NewSubscriber(redisstream.SubscriberConfig{Client: redisClient}, watermillLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subscriber: %w", err)
 	}
 
-	marshaller := cqrs.JSONMarshaler{
-		GenerateName: cqrs.StructName,
-	}
-
-	router.AddNoPublisherHandler(
-		"events_splitter",
-		"events",
-		sub,
-		func(msg *message.Message) error {
-			eventName := marshaller.NameFromMessage(msg)
-			if eventName == "" {
-				return fmt.Errorf("cannot get event name from message")
-			}
-
-			return publisher.Publish("events."+eventName, msg)
+	postgresSubscriber, err := watermillSQL.NewSubscriber(
+		db,
+		watermillSQL.SubscriberConfig{
+			SchemaAdapter:  watermillSQL.DefaultPostgreSQLSchema{},
+			OffsetsAdapter: watermillSQL.DefaultPostgreSQLOffsetsAdapter{},
+			// todo setup through config. for tests should be different values
+			PollInterval:   500 * time.Millisecond,
+			ResendInterval: 500 * time.Millisecond,
+			RetryInterval:  500 * time.Millisecond,
 		},
+		watermillLogger,
 	)
-
-	saverSub, err :=
-		redisstream.NewSubscriber(redisstream.SubscriberConfig{
-			Client:        redisClient,
-			ConsumerGroup: "events_saver",
-		}, watermillLogger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create subscriber: %w", err)
+		return nil, err
 	}
 
-	router.AddNoPublisherHandler(
-		"events_saver",
-		"events",
-		saverSub,
-		func(msg *message.Message) error {
-			type Event struct {
-				Header entities.EventHeader `json:"header"`
-			}
-
-			var event Event
-			err := marshaller.Unmarshal(msg, &event)
-			if err != nil {
-				return err
-			}
-
-			eventName := marshaller.NameFromMessage(msg)
-			if eventName == "" {
-				return fmt.Errorf("cannot get event name from message")
-			}
-
-			publishedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse published_at for event %s: %w", eventName, err)
-			}
-
-			id, err := uuid.Parse(event.Header.Id)
-			if err != nil {
-				return fmt.Errorf("failed to parse ID: %w", err)
-			}
-
-			err = eventsRepo.SaveEvent(
-				msg.Context(),
-				entities.DatalakeEvent{
-					Id:          id,
-					PublishedAt: publishedAt,
-					EventName:   eventName,
-					Payload:     msg.Payload,
-				},
-			)
-			if err != nil {
-				return fmt.Errorf("failed to save event %s: %w", eventName, err)
-			}
-
-			return err
-		},
-	)
+	err = postgresSubscriber.SubscribeInitialize(outbox.Topic)
+	if err != nil {
+		return nil, err
+	}
 
 	eventHandler := events.NewHandler(
 		eventBus,
@@ -213,59 +145,31 @@ func NewApp(
 		showsRepo,
 	)
 
-	eventProcessor, err := events.NewEventProcessor(router, redisClient, marshaller, watermillLogger)
-
-	eventProcessor.AddHandlers(
-		// TicketBookingConfirmed handlers
-		eventHandler.TicketsToPrintHandler(),
-		eventHandler.PrepareTicketsHandler(),
-		eventHandler.IssueReceiptHandler(),
-		eventHandler.StoreTicketsHandler(),
-
-		// TicketBookingCancelled handlers
-		eventHandler.RefundTicketHandler(),
-		eventHandler.RemoveTicketsHandler(),
-
-		// BookingMade handlers
-		eventHandler.TicketBookingHandler(),
-
-		// Read model handlers
-		cqrs.NewEventHandler(
-			"ops_booking_read_model.on_booking_made",
-			opsBookingReadModelRepo.OnBookingMadeEvent),
-		cqrs.NewEventHandler(
-			"ops_booking_read_model.on_ticket_booking_confirmed",
-			opsBookingReadModelRepo.OnTicketBookingConfirmedEvent),
-		cqrs.NewEventHandler(
-			"ops_booking_read_model.on_ticket_receipt_issued",
-			opsBookingReadModelRepo.OnTicketReceiptIssuedEvent),
-		cqrs.NewEventHandler(
-			"ops_booking_read_model.on_ticket_printed",
-			opsBookingReadModelRepo.OnTicketPrintedEvent),
-		cqrs.NewEventHandler(
-			"ops_booking_read_model.on_ticket_removed",
-			opsBookingReadModelRepo.OnTicketRefundedEvent),
+	commandHandler := commands.NewHandler(
+		eventBus,
+		paymentsClient,
+		receiptsClient,
 	)
 
-	commandHandlers := commands.NewHandler(eventBus, paymentsClient, receiptsClient)
-	commandsProcessor, err := commands.NewCommandsProcessor(router, redisClient, watermillLogger)
-	if err != nil {
-		return nil, err
-	}
-	err = commandsProcessor.AddHandlers(
-		commandHandlers.RefundTicketsHandler(),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	forwarder, err := outbox.NewForwarder(
-		db,
-		redisClient,
+	router, err := message.NewRouter(
 		watermillLogger,
+		postgresSubscriber,
+		redisSubscriber,
+		redisPublisher,
+
+		eventHandler,
+		commandHandler,
+
+		cqrs.JSONMarshaler{
+			GenerateName: cqrs.StructName,
+		},
+		events.NewEventProcessorConfig(redisClient, watermillLogger),
+		commands.NewCommandProcessorConfig(redisClient, watermillLogger),
+		eventsRepo,
+		opsBookingReadModelRepo,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create forwarder: %w", err)
+		return nil, err
 	}
 
 	return &App{
@@ -274,7 +178,6 @@ func NewApp(
 		router:                  router,
 		srv:                     srv,
 		db:                      db,
-		forwarder:               forwarder,
 		eventsRepo:              eventsRepo,
 		opsBookingReadModelRepo: opsBookingReadModelRepo,
 	}, nil
@@ -302,20 +205,20 @@ func (a *App) Run(ctx context.Context) error {
 	})
 
 	g.Go(func() error {
-		a.logger.Info().Msg("starting outbox forwarder")
-		a.forwarder.RunForwarder(ctx)
-
-		a.logger.Info().Msg("forwarder is running")
-		return nil
-	})
-
-	g.Go(func() error {
 		a.logger.Info().Msg("migrating events")
 		err := a.MigrateEvents()
 		if err != nil {
 			a.logger.Err(err).Msg("failed to migrate events")
 		}
 		return err
+	})
+
+	g.Go(func() error {
+		for {
+			veryImportantCounter.Inc()
+			time.Sleep(time.Millisecond * 100)
+		}
+		return nil
 	})
 
 	g.Go(func() error {

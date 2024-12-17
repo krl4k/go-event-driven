@@ -14,8 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"tickets/internal/entities"
-	"tickets/internal/interfaces/events"
-	"tickets/internal/outbox"
+	"tickets/internal/interfaces/message/events"
+	"tickets/internal/interfaces/message/outbox"
 	"time"
 )
 

@@ -23,7 +23,7 @@ func NewPublisher(
 	}
 
 	fpublisher := forwarder.NewPublisher(publisher, forwarder.PublisherConfig{
-		ForwarderTopic: outbox_topic,
+		ForwarderTopic: Topic,
 	})
 
 	return fpublisher, nil

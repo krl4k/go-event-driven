@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"tickets/internal/entities"
 	"tickets/internal/infrastructure/clients"
-	"time"
 )
 
 //go:generate mockgen -destination=mocks/spreadsheets_service_mock.go -package=mocks . SpreadsheetsService
@@ -41,7 +40,7 @@ type ShowsRepository interface {
 }
 
 type EventRepository interface {
-	SaveEvent(ctx context.Context, id uuid.UUID, publishedAt time.Time, eventName string, payload []byte) error
+	SaveEvent(ctx context.Context, event entities.DatalakeEvent) error
 }
 
 type Handler struct {

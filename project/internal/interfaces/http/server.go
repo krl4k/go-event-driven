@@ -6,6 +6,7 @@ import (
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/labstack/echo/v4"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"tickets/internal/application/usecases/booking"
 	"tickets/internal/application/usecases/shows"
@@ -30,7 +31,6 @@ func NewServer(
 	showsService *shows.CreateShowUsecase,
 	bookingsService *booking.BookTicketsUsecase,
 	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo,
-	routerIsRunning func() bool,
 ) *Server {
 	srv := &Server{
 		e:                       e,
@@ -52,11 +52,10 @@ func NewServer(
 	e.GET("/ops/bookings/:booking_id", srv.GetBookingHandler)
 
 	e.GET("/health", func(c echo.Context) error {
-		if !routerIsRunning() {
-			return c.String(http.StatusServiceUnavailable, "router is not running")
-		}
 		return c.String(http.StatusOK, "ok")
 	})
+
+	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	// logging middleware
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {

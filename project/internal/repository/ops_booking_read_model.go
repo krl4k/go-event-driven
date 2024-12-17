@@ -223,6 +223,10 @@ func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedEvent(ctx context.Cont
 				return fmt.Errorf("OnTicketBookingConfirmedEvent. failed to find read model by booking ID: %w", err)
 			}
 
+			if findReadModelByBookingID == nil {
+				return nil
+			}
+
 			ticket := findReadModelByBookingID.Tickets[event.TicketId]
 
 			confirmedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
@@ -260,6 +264,10 @@ func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedEvent(ctx context.Context
 			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
 			if err != nil {
 				return fmt.Errorf("OnTicketReceiptIssuedEvent. failed to find read model by booking ID: %w", err)
+			}
+
+			if findReadModelByBookingID == nil {
+				return nil
 			}
 
 			ticket, ok := findReadModelByBookingID.Tickets[event.TicketId]
@@ -331,6 +339,10 @@ func (r *OpsBookingReadModelRepo) OnTicketPrintedEvent(ctx context.Context, even
 			if err != nil {
 				log.FromContext(ctx).Error("OnTicketPrintedEvent. failed to find read model by booking ID: ", event.BookingID, " error:", err)
 				return fmt.Errorf("OnTicketPrintedEvent. failed to find read model by booking ID: %w", err)
+			}
+
+			if findReadModelByTicketID == nil {
+				return nil
 			}
 
 			ticket, ok := findReadModelByTicketID.Tickets[event.TicketID]
