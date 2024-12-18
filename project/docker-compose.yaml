@@ -32,7 +32,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     ports:
-      - 9090:9090
+      - "9090:9090"
     restart: unless-stopped
     volumes:
       - ./docker/prometheus:/etc/prometheus
@@ -51,6 +51,16 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./docker/grafana:/etc/grafana/provisioning/datasources
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_EXPORTER_CHECK_STREAMS: db0=events*,db0=commands*
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
 
 volumes:
   prom_data:

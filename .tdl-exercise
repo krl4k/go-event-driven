@@ -1,3 +1,3 @@
-exercise_id = "908df5f6-484f-4e3d-ad0b-e4ff7dddeadf"
-directory = "project"
-is_text_only = false
+exercise_id = "bdc98a43-406a-4702-b949-037857d58ae7"
+directory = "18-metrics-and-alerting/05-alerts"
+is_text_only = true
