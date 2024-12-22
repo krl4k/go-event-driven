@@ -2,12 +2,16 @@ package events
 
 import (
 	"errors"
+	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"time"
 )
 
@@ -123,5 +127,30 @@ func MetricsMiddleware(next message.HandlerFunc) message.HandlerFunc {
 		}
 
 		return msgs, err
+	}
+}
+
+func TracingMiddleware(next message.HandlerFunc) message.HandlerFunc {
+	return func(msg *message.Message) (events []*message.Message, err error) {
+		topic := message.SubscribeTopicFromCtx(msg.Context())
+		handler := message.HandlerNameFromCtx(msg.Context())
+
+		ctx := msg.Context()
+		ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(msg.Metadata))
+
+		ctx, span := otel.Tracer("").Start(
+			ctx,
+			fmt.Sprintf("topic: %s, handler: %s", topic, handler),
+		)
+		defer span.End()
+
+		msg.SetContext(ctx)
+
+		events, err = next(msg)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		return events, err
 	}
 }

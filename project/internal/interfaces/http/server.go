@@ -3,10 +3,14 @@ package http
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"net/http"
 	"tickets/internal/application/usecases/booking"
 	"tickets/internal/application/usecases/shows"
@@ -75,6 +79,9 @@ func NewServer(
 			return err
 		}
 	})
+
+	e.Use(TracingMiddleware())
+
 	return srv
 }
 
@@ -89,4 +96,50 @@ func (s *Server) Start() error {
 
 func (s *Server) Stop(ctx context.Context) error {
 	return s.e.Shutdown(ctx)
+}
+
+func TracingMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			req := c.Request()
+			operationName := fmt.Sprintf("%s %s", req.Method, c.Path())
+
+			// create span
+			tracer := otel.Tracer("http")
+			ctx, span := tracer.Start(req.Context(), operationName)
+			defer span.End()
+
+			// base attributes
+			span.SetAttributes(
+				attribute.String("http.method", req.Method),
+				attribute.String("http.url", req.URL.String()),
+				attribute.String("http.path", c.Path()),
+				attribute.String("http.host", req.Host),
+				attribute.String("http.user_agent", req.UserAgent()),
+			)
+
+			// add request id to span
+			if requestID := c.Request().Header.Get("X-Request-ID"); requestID != "" {
+				span.SetAttributes(attribute.String("http.request_id", requestID))
+			}
+
+			if correlationID := c.Request().Header.Get("Correlation-ID"); correlationID != "" {
+				span.SetAttributes(attribute.String("http.correlation_id", correlationID))
+			}
+
+			// set span to context
+			c.SetRequest(req.WithContext(ctx))
+
+			err := next(c)
+
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			} else {
+				span.SetAttributes(attribute.Int("http.status_code", c.Response().Status))
+			}
+
+			return err
+		}
+	}
 }

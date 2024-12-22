@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/sync/errgroup"
 	"os"
 	"tickets/internal/application/usecases/booking"
@@ -30,6 +31,7 @@ import (
 	"tickets/internal/interfaces/message/commands"
 	events "tickets/internal/interfaces/message/events"
 	outbox "tickets/internal/interfaces/message/outbox"
+	"tickets/internal/observability"
 	"tickets/internal/repository"
 	"time"
 
@@ -54,6 +56,7 @@ type App struct {
 	db                      *sqlx.DB
 	eventsRepo              *repository.EventsRepository
 	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo
+	traceProviver           *trace.TracerProvider
 }
 
 func NewApp(
@@ -65,6 +68,7 @@ func NewApp(
 	paymentsClient PaymentsService,
 	redisClient *redis.Client,
 	db *sqlx.DB,
+	tp *trace.TracerProvider,
 ) (*App, error) {
 	trManager := manager.Must(trmsqlx.NewDefaultFactory(db))
 	var redisPublisher watermillMessage.Publisher
@@ -76,6 +80,9 @@ func NewApp(
 	}
 
 	redisPublisher = event_publisher.CorrelationPublisherDecorator{
+		Publisher: redisPublisher,
+	}
+	redisPublisher = observability.PublisherWithTracing{
 		Publisher: redisPublisher,
 	}
 	eventBus, err := events.NewEventBus(redisPublisher, watermillLogger)
@@ -180,6 +187,7 @@ func NewApp(
 		db:                      db,
 		eventsRepo:              eventsRepo,
 		opsBookingReadModelRepo: opsBookingReadModelRepo,
+		traceProviver:           tp,
 	}, nil
 }
 
@@ -193,7 +201,11 @@ func (a *App) Run(ctx context.Context) error {
 	g.Go(func() error {
 		a.logger.Info().Msg("starting router")
 
-		return a.router.Run(ctx)
+		err := a.router.Run(ctx)
+		if err != nil {
+			a.logger.Err(err).Msg("error running router")
+		}
+		return nil
 	})
 
 	g.Go(func() error {
@@ -215,7 +227,12 @@ func (a *App) Run(ctx context.Context) error {
 
 	g.Go(func() error {
 		for {
-			veryImportantCounter.Inc()
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+				veryImportantCounter.Inc()
+			}
 			time.Sleep(time.Millisecond * 100)
 		}
 		return nil
@@ -231,6 +248,15 @@ func (a *App) Run(ctx context.Context) error {
 		}
 
 		return err
+	})
+
+	g.Go(func() error {
+		<-ctx.Done()
+		err := a.traceProviver.Shutdown(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 
 	// Will block until all goroutines finish

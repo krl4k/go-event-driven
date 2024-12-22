@@ -16,6 +16,7 @@ import (
 	"tickets/internal/entities"
 	"tickets/internal/interfaces/message/events"
 	"tickets/internal/interfaces/message/outbox"
+	"tickets/internal/observability"
 	"time"
 )
 
@@ -120,7 +121,9 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking entities.B
 				return fmt.Errorf("failed to create event publisher: %w", err)
 			}
 
-			eb, err := events.NewEventBus(publisher, s.watermillLogger)
+			publisherWithTracing := observability.PublisherWithTracing{Publisher: publisher}
+
+			eb, err := events.NewEventBus(publisherWithTracing, s.watermillLogger)
 			if err != nil {
 				return fmt.Errorf("failed to create event bus: %w", err)
 			}

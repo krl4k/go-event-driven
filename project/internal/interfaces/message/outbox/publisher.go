@@ -5,6 +5,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	watermillSQL "github.com/ThreeDotsLabs/watermill-sql/v2/pkg/sql"
 	"github.com/ThreeDotsLabs/watermill/components/forwarder"
+	"tickets/internal/observability"
 )
 
 func NewPublisher(
@@ -22,19 +23,11 @@ func NewPublisher(
 		return nil, fmt.Errorf("failed to create publisher: %w", err)
 	}
 
-	fpublisher := forwarder.NewPublisher(publisher, forwarder.PublisherConfig{
+	publisherWithTracing := observability.PublisherWithTracing{Publisher: publisher}
+
+	fpublisher := forwarder.NewPublisher(publisherWithTracing, forwarder.PublisherConfig{
 		ForwarderTopic: Topic,
 	})
 
 	return fpublisher, nil
 }
-
-//func PublishInTx(
-//	topic string,
-//	tx watermillSQL.ContextExecutor,
-//	msg *message.Message,
-//	logger watermill.LoggerAdapter,
-//) error {
-//
-//	return fpublisher.Publish(topic, msg)
-//}

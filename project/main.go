@@ -8,11 +8,15 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
-	nethttp "net/http"
+	"github.com/uptrace/opentelemetry-go-extra/otelsql"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	"net/http"
 	"os"
 	"os/signal"
 	"tickets/internal/app"
 	"tickets/internal/infrastructure/clients"
+	"tickets/internal/observability"
 )
 
 func main() {
@@ -24,12 +28,22 @@ func main() {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
-	commonClients, err := commonClients.NewClients(gatewayAddr,
-		func(ctx context.Context, req *nethttp.Request) error {
+
+	traceHttpClient := &http.Client{Transport: otelhttp.NewTransport(
+		http.DefaultTransport,
+		otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
+			return fmt.Sprintf("HTTP %s %s %s", r.Method, r.URL.String(), operation)
+		}),
+	)}
+
+	commonClients, err := commonClients.NewClientsWithHttpClient(gatewayAddr,
+		func(ctx context.Context, req *http.Request) error {
 			req.Header.Set("Correlation-ID", log.CorrelationIDFromContext(ctx))
 			return nil
 		},
+		traceHttpClient,
 	)
+
 	if err != nil {
 		panic(err)
 	}
@@ -39,11 +53,16 @@ func main() {
 	deadNationClient := clients.NewDeadNationClient(commonClients)
 	paymentsClient := clients.NewPaymentsClient(commonClients)
 
-	db, err := sqlx.Open("postgres", os.Getenv("POSTGRES_URL"))
+	traceDB, err := otelsql.Open("postgres", os.Getenv("POSTGRES_URL"),
+		otelsql.WithAttributes(semconv.DBSystemPostgreSQL),
+		otelsql.WithDBName("db"))
 	if err != nil {
 		panic(err)
 	}
+	db := sqlx.NewDb(traceDB, "postgres")
 	defer db.Close()
+
+	tp := observability.ConfigureTraceProvider()
 
 	a, err := app.NewApp(
 		wlogger,
@@ -54,6 +73,7 @@ func main() {
 		paymentsClient,
 		rdb,
 		db,
+		tp,
 	)
 	if err != nil {
 		panic(err)

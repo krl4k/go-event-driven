@@ -159,6 +159,7 @@ func NewRouter(
 }
 
 func initMiddlewares(watermillLogger watermill.LoggerAdapter, router *message.Router) {
+	router.AddMiddleware(events.TracingMiddleware)
 	router.AddMiddleware(middleware.Recoverer)
 	router.AddMiddleware(events.CorrelationIDMiddleware)
 	router.AddMiddleware(events.LoggingMiddleware)

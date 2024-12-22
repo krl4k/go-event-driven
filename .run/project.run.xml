@@ -6,6 +6,7 @@
       <env name="GATEWAY_ADDR" value="http://localhost:8888" />
       <env name="POSTGRES_URL" value="postgres://user:password@localhost:5432/db?sslmode=disable" />
       <env name="REDIS_ADDR" value="localhost:6379" />
+      <env name="JAEGER_ENDPOINT" value="http://localhost:14268/api/traces" />
     </envs>
     <EXTENSION ID="net.ashald.envfile">
       <option name="IS_ENABLED" value="false" />

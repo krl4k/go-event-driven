@@ -126,3 +126,8 @@ graph LR
 classDef orange fill:#f96,stroke:#333,stroke-width:4px;
 class L orange
 ```
+
+
+## Tracing with OpenTelemetry and Jaeger
+
+![img.png](img.png)
