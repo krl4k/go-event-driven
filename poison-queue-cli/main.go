@@ -92,16 +92,13 @@ func (h *Handler) Preview(ctx context.Context) ([]Message, error) {
 				firstMessageID = msg.UUID
 			} else if msg.UUID == firstMessageID {
 				done = true
+				return []*message.Message{msg}, nil
 			}
 
 			res = append(res, Message{
 				ID:     msg.UUID,
 				Reason: msg.Metadata.Get(middleware.ReasonForPoisonedKey),
 			})
-
-			if err := h.publisher.Publish(PoisonQueueTopic, msg); err != nil {
-				return nil, err
-			}
 
 			return []*message.Message{msg}, nil
 		},
@@ -113,6 +110,55 @@ func (h *Handler) Preview(ctx context.Context) ([]Message, error) {
 	}
 
 	return res, nil
+}
+
+func (h *Handler) Remove(ctx context.Context, id string) error {
+	router, err := message.NewRouter(
+		message.RouterConfig{},
+		watermill.NewStdLogger(false, false),
+	)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	firstMessageID := ""
+	done := false
+	var removingErr error
+
+	router.AddHandler("preview_poison_queue",
+		PoisonQueueTopic,
+		h.subscriber,
+		PoisonQueueTopic,
+		h.publisher,
+		func(msg *message.Message) ([]*message.Message, error) {
+			if done {
+				cancel()
+				return nil, fmt.Errorf("done")
+			}
+
+			if msg.UUID == id {
+				done = true
+				return nil, nil
+			}
+
+			if firstMessageID == "" {
+				firstMessageID = msg.UUID
+			} else if msg.UUID == firstMessageID {
+				done = true
+				removingErr = fmt.Errorf("message not found")
+			}
+
+			return []*message.Message{msg}, nil
+		},
+	)
+
+	err = router.Run(ctx)
+	if err != nil {
+		return err
+	}
+
+	return removingErr
 }
 
 func main() {
@@ -136,6 +182,24 @@ func main() {
 
 					for _, m := range messages {
 						fmt.Printf("%v\t%v\n", m.ID, m.Reason)
+					}
+
+					return nil
+				},
+			},
+			{
+				Name:      "remove",
+				ArgsUsage: "<message_id>",
+				Usage:     "remove message",
+				Action: func(c *cli.Context) error {
+					h, err := NewHandler()
+					if err != nil {
+						return err
+					}
+
+					err = h.Remove(c.Context, c.Args().First())
+					if err != nil {
+						return err
 					}
 
 					return nil
