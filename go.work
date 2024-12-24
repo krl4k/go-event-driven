@@ -32,5 +32,9 @@ use (
 	./19-tracing/02-tracing-attributes
 	./19-tracing/03-propagating-tracing-in-message
 	./19-tracing/04-tracing-with-outbox
+	./20-fault-tolerance/02-throttling
+	./20-fault-tolerance/03-circuit-breaker
+	./20-fault-tolerance/04-poison-queue
+	./poison-queue-cli
 	./project
 )
