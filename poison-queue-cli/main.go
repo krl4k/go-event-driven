@@ -161,6 +161,62 @@ func (h *Handler) Remove(ctx context.Context, id string) error {
 	return removingErr
 }
 
+func (h *Handler) Requeue(ctx context.Context, messageID string) error {
+	router, err := message.NewRouter(
+		message.RouterConfig{},
+		watermill.NewStdLogger(false, false),
+	)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	firstMessageID := ""
+	done := false
+	var requeueingErr error
+
+	router.AddHandler("preview_poison_queue",
+		PoisonQueueTopic,
+		h.subscriber,
+		PoisonQueueTopic,
+		h.publisher,
+		func(msg *message.Message) ([]*message.Message, error) {
+			if done {
+				cancel()
+				return nil, fmt.Errorf("done")
+			}
+
+			if msg.UUID == messageID {
+				done = true
+				originTopic := msg.Metadata.Get(middleware.PoisonedTopicKey)
+
+				err := h.publisher.Publish(originTopic, msg)
+				if err != nil {
+					return nil, err
+				}
+
+				return nil, nil
+			}
+
+			if firstMessageID == "" {
+				firstMessageID = msg.UUID
+			} else if msg.UUID == firstMessageID {
+				done = true
+				requeueingErr = fmt.Errorf("message not found")
+			}
+
+			return []*message.Message{msg}, nil
+		},
+	)
+
+	err = router.Run(ctx)
+	if err != nil {
+		return err
+	}
+
+	return requeueingErr
+}
+
 func main() {
 	app := &cli.App{
 		Name:  "poison-queue-cli",
@@ -198,6 +254,23 @@ func main() {
 					}
 
 					err = h.Remove(c.Context, c.Args().First())
+					if err != nil {
+						return err
+					}
+
+					return nil
+				},
+			},
+			{
+				Name:  "requeue",
+				Usage: "requeue message",
+				Action: func(c *cli.Context) error {
+					h, err := NewHandler()
+					if err != nil {
+						return err
+					}
+
+					err = h.Requeue(c.Context, c.Args().First())
 					if err != nil {
 						return err
 					}
