@@ -52,6 +52,15 @@ func (r *Repo) PlaceOrder(ctx context.Context, tx *sqlx.Tx, req PlaceOrderReq) e
 		return fmt.Errorf("insert order: %w", err)
 	}
 
+	return nil
+}
+
+type OrderProductInsertReq struct {
+	OrderID  uuid.UUID
+	Products map[uuid.UUID]int
+}
+
+func (r *Repo) InsertOrderProduct(ctx context.Context, tx *sqlx.Tx, req OrderProductInsertReq) error {
 	for product, quantity := range req.Products {
 		_, err := tx.Exec(
 			"INSERT INTO order_products (order_id, product_id, quantity) VALUES ($1, $2, $3)",

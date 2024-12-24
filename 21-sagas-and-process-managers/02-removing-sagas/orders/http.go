@@ -3,7 +3,6 @@ package orders
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 	"remove_sagas/common"
@@ -39,45 +38,53 @@ func mountHttpHandlers(
 			return err
 		}
 
-		err := common.UpdateInTx(
-			c.Request().Context(),
-			orderRepo.DB,
-			sql.LevelSerializable,
-			func(ctx context.Context, tx *sqlx.Tx) error {
-				err := orderRepo.PlaceOrder(ctx, tx, PlaceOrderReq{
-					OrderID:  order.OrderID,
-					Products: order.Products,
-				})
-				if err != nil {
-					return fmt.Errorf("place order: %w", err)
-				}
+		var err error
+		for i := 0; i < 10; i++ {
+			err = common.UpdateInTx(
+				c.Request().Context(),
+				orderRepo.DB,
+				sql.LevelSerializable,
+				func(ctx context.Context, tx *sqlx.Tx) error {
+					err := orderRepo.PlaceOrder(ctx, tx, PlaceOrderReq{
+						OrderID:  order.OrderID,
+						Products: order.Products,
+					})
+					if err != nil {
+						return fmt.Errorf("place order: %w", err)
+					}
 
-				err = stockRepo.RemoveProductsFromStock(ctx, tx, stock.RemoveProductsFromStockReq{
-					OrderID:  order.OrderID,
-					Products: order.Products,
-				})
-				if err != nil {
-					if errors.Is(err, stock.ProductsOutOfStockError) {
+					err = stockRepo.RemoveProductsFromStock(ctx, tx, stock.RemoveProductsFromStockReq{
+						OrderID:  order.OrderID,
+						Products: order.Products,
+					})
+					if err != nil {
 						err := orderRepo.CancelOrder(ctx, tx, order.OrderID)
 						if err != nil {
 							return fmt.Errorf("cancel order: %w", err)
 						}
-						// should be 409 Conflict, but we should be backwards compatible
+						// todo should be 409 but we need backwards compatibility
 						return c.NoContent(http.StatusCreated)
 					}
-					err := orderRepo.CancelOrder(ctx, tx, order.OrderID)
 
-					return fmt.Errorf("remove products from stock: %w", err)
-				}
+					err = orderRepo.ShipOrder(ctx, tx, order.OrderID)
+					if err != nil {
+						return fmt.Errorf("ship order: %w", err)
+					}
+					err = orderRepo.InsertOrderProduct(ctx, tx, OrderProductInsertReq{
+						OrderID:  order.OrderID,
+						Products: order.Products,
+					})
+					if err != nil {
+						return fmt.Errorf("insert order product: %w", err)
+					}
+					return nil
+				},
+			)
 
-				err = orderRepo.ShipOrder(ctx, tx, order.OrderID)
-				if err != nil {
-					return fmt.Errorf("ship order: %w", err)
-				}
-				return nil
-			},
-		)
-
+			if err == nil {
+				break
+			}
+		}
 		if err != nil {
 			return err
 		}

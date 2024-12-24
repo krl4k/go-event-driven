@@ -36,6 +36,7 @@ use (
 	./20-fault-tolerance/03-circuit-breaker
 	./20-fault-tolerance/04-poison-queue
 	./21-sagas-and-process-managers/02-removing-sagas
+	./21-sagas-and-process-managers/03-modeling-process-manager
 	./poison-queue-cli
 	./project
 )
