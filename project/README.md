@@ -127,6 +127,42 @@ classDef orange fill:#f96,stroke:#333,stroke-width:4px;
 class L orange
 ```
 
+### VIP bundle events flow
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant PM as ProcessManager
+    participant SB as ShowBooking
+    participant FB as FlightBooking
+    participant TB as TaxiBooking
+    participant R as Repository
+
+    C->>PM: VipBundleInitialized
+    PM->>R: Get VipBundle
+    PM->>SB: BookShowTickets
+    
+    par Ticket Confirmations
+        SB-->>PM: TicketBookingConfirmed
+        PM->>R: Update(TicketIDs)
+    and Booking Made
+        SB-->>PM: BookingMade
+        PM->>R: Update(BookingMadeAt)
+        PM->>FB: BookFlight(inbound)
+    end
+    
+    FB-->>PM: FlightBooked(inbound)
+    PM->>R: Update(InboundFlightData)
+    PM->>FB: BookFlight(return)
+    
+    FB-->>PM: FlightBooked(return)
+    PM->>R: Update(ReturnFlightData)
+    PM->>TB: BookTaxi
+    
+    TB-->>PM: TaxiBooked
+    PM->>R: Update(TaxiData, IsFinalized)
+    PM-->>C: VipBundleFinalized
+```
+
 
 ## Tracing with OpenTelemetry and Jaeger
 
