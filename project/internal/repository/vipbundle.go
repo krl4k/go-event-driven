@@ -2,13 +2,20 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
+	"tickets/internal/entities"
+
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"tickets/internal/entities"
 )
+
+var ErrVipBundleNotFound = fmt.Errorf("vip bundle not found")
+var ErrVipBundleSkipped = fmt.Errorf("vip bundle update skipped")
 
 type VipBundle struct {
 	db     *sqlx.DB
@@ -52,6 +59,9 @@ func (vb *VipBundle) Get(ctx context.Context, vipBundleID uuid.UUID) (entities.V
 	`, vipBundleID).Scan(&bundleJson)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return vipBundle, ErrVipBundleNotFound
+		}
 		return vipBundle, fmt.Errorf("select vip bundle: %w", err)
 	}
 
@@ -73,6 +83,9 @@ func (vb *VipBundle) GetByBookingID(ctx context.Context, bookingID uuid.UUID) (e
 	`, bookingID).Scan(&bundleJson)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return vipBundle, ErrVipBundleNotFound
+		}
 		return vipBundle, fmt.Errorf("select vip bundle by booking id: %w", err)
 	}
 
@@ -91,7 +104,10 @@ func (vb *VipBundle) UpdateByID(
 ) (entities.VipBundle, error) {
 	vipBundle, err := vb.Get(ctx, id)
 	if err != nil {
-		return entities.VipBundle{}, fmt.Errorf("get vip bundle: %w", err)
+		if errors.Is(err, ErrVipBundleNotFound) {
+			return entities.VipBundle{}, ErrVipBundleSkipped
+		}
+		return entities.VipBundle{}, err
 	}
 
 	vipBundle, err = updateFn(vipBundle)
@@ -118,12 +134,15 @@ func (vb *VipBundle) UpdateByID(
 func (vb *VipBundle) UpdateByBookingID(
 	ctx context.Context,
 	bookingID uuid.UUID,
-	updateFn func(vipBundle entities.VipBundle,
-	) (entities.VipBundle, error),
+	updateFn func(vipBundle entities.VipBundle) (entities.VipBundle, error),
 ) (entities.VipBundle, error) {
 	vipBundle, err := vb.GetByBookingID(ctx, bookingID)
 	if err != nil {
-		return entities.VipBundle{}, fmt.Errorf("get vip bundle by booking id %s: %w", bookingID, err)
+		if errors.Is(err, ErrVipBundleNotFound) {
+			log.Printf("skipping update: vip bundle with booking id %s doesn't exist", bookingID)
+			return entities.VipBundle{}, ErrVipBundleSkipped
+		}
+		return entities.VipBundle{}, err
 	}
 
 	vipBundle, err = updateFn(vipBundle)

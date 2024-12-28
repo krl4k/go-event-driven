@@ -2,9 +2,12 @@ package events
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"tickets/internal/entities"
+	"tickets/internal/repository"
+
+	"github.com/google/uuid"
 )
 
 type CommandBus interface {
@@ -75,6 +78,9 @@ func (v VipBundleProcessManager) OnBookingMade(ctx context.Context, event *entit
 		return vipBundle, nil
 	})
 	if err != nil {
+		if errors.Is(err, repository.ErrVipBundleSkipped) {
+			return nil
+		}
 		return fmt.Errorf("OnBookingMade: update vip bundle: %w", err)
 	}
 
@@ -104,6 +110,9 @@ func (v VipBundleProcessManager) OnTicketBookingConfirmed(ctx context.Context, e
 		return vipBundle, nil
 	})
 	if err != nil {
+		if errors.Is(err, repository.ErrVipBundleSkipped) {
+			return nil
+		}
 		return fmt.Errorf("OnTicketBookingConfirmed: update vip bundle: %w", err)
 	}
 
@@ -129,7 +138,10 @@ func (v VipBundleProcessManager) OnFlightBooked(ctx context.Context, event *enti
 			return vpBundle, nil
 		})
 		if err != nil {
-			return fmt.Errorf("OnFlightBooked: update vip bundle: %w", err)
+			if errors.Is(err, repository.ErrVipBundleSkipped) {
+				return nil
+			}
+			return fmt.Errorf("failed to update vip bundle: %w", err)
 		}
 
 		// book return flight
@@ -151,7 +163,10 @@ func (v VipBundleProcessManager) OnFlightBooked(ctx context.Context, event *enti
 			return vpBundle, nil
 		})
 		if err != nil {
-			return fmt.Errorf("OnFlightBooked: update vip bundle: %w", err)
+			if errors.Is(err, repository.ErrVipBundleSkipped) {
+				return nil
+			}
+			return fmt.Errorf("failed to update vip bundle: %w", err)
 		}
 	default:
 		return fmt.Errorf("OnFlightBooked: unknown flight id: %s", event.FlightID.String())
@@ -181,11 +196,13 @@ func (v VipBundleProcessManager) OnTaxiBooked(ctx context.Context, event *entiti
 	_, err = v.repository.UpdateByID(ctx, vpBundleID, func(vipBundle entities.VipBundle) (entities.VipBundle, error) {
 		vipBundle.TaxiBookedAt = &event.Header.PublishedAt
 		vipBundle.TaxiBookingID = &event.TaxiBookingID
-
 		vipBundle.IsFinalized = true
 		return vipBundle, nil
 	})
 	if err != nil {
+		if errors.Is(err, repository.ErrVipBundleSkipped) {
+			return nil
+		}
 		return fmt.Errorf("OnTaxiBooked: update vip bundle: %w", err)
 	}
 
@@ -290,6 +307,9 @@ func (v VipBundleProcessManager) rollback(ctx context.Context, vpBundle entities
 		return vipBundle, nil
 	})
 	if err != nil {
+		if errors.Is(err, repository.ErrVipBundleSkipped) {
+			return nil
+		}
 		return fmt.Errorf("rollback: update vip bundle: %w", err)
 	}
 
