@@ -173,14 +173,9 @@ func (r *OpsBookingReadModelRepo) OnBookingMadeV0Event(ctx context.Context, even
 			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
 		),
 		func(ctx context.Context) error {
-			bookedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse booked at time: %w", err)
-			}
-
 			booking := &entities.OpsBooking{
 				BookingID:  event.BookingID,
-				BookedAt:   bookedAt,
+				BookedAt:   event.Header.PublishedAt,
 				LastUpdate: time.Now().UTC(),
 				Tickets:    nil,
 			}
@@ -218,28 +213,23 @@ func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedEvent(ctx context.Cont
 			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
 		),
 		func(ctx context.Context) error {
-			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
+			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingID)
 			if err != nil {
-				return fmt.Errorf("OnTicketBookingConfirmedEvent. failed to find read model by booking ID: %w", err)
+				return fmt.Errorf("OnTicketBookingConfirmedEvent. failed to find read model by booking BookingID: %w", err)
 			}
 
 			if findReadModelByBookingID == nil {
 				return nil
 			}
 
-			ticket := findReadModelByBookingID.Tickets[event.TicketId]
+			ticket := findReadModelByBookingID.Tickets[event.TicketID]
 
-			confirmedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse confirmed at time: %w", err)
-			}
-
-			ticket.ConfirmedAt = confirmedAt
+			ticket.ConfirmedAt = event.Header.PublishedAt
 			ticket.PriceAmount = event.Price.Amount
 			ticket.PriceCurrency = event.Price.Currency
 			ticket.CustomerEmail = event.CustomerEmail
 
-			findReadModelByBookingID.Tickets[event.TicketId] = ticket
+			findReadModelByBookingID.Tickets[event.TicketID] = ticket
 
 			err = r.updateReadModel(ctx, findReadModelByBookingID)
 			if err != nil {
@@ -263,7 +253,7 @@ func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedEvent(ctx context.Context
 		func(ctx context.Context) error {
 			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
 			if err != nil {
-				return fmt.Errorf("OnTicketReceiptIssuedEvent. failed to find read model by booking ID: %w", err)
+				return fmt.Errorf("OnTicketReceiptIssuedEvent. failed to find read model by booking BookingID: %w", err)
 			}
 
 			if findReadModelByBookingID == nil {
@@ -302,7 +292,7 @@ func (r *OpsBookingReadModelRepo) OnTicketReceiptIssuedV0Event(ctx context.Conte
 		func(ctx context.Context) error {
 			findReadModelByTicketID, err := r.findReadModelByTicketID(ctx, event.TicketId)
 			if err != nil {
-				return fmt.Errorf("OnTicketReceiptIssuedEvent. failed to find read model by booking ID: %w", err)
+				return fmt.Errorf("OnTicketReceiptIssuedEvent. failed to find read model by booking BookingID: %w", err)
 			}
 
 			ticket, ok := findReadModelByTicketID.Tickets[event.TicketId]
@@ -337,8 +327,8 @@ func (r *OpsBookingReadModelRepo) OnTicketPrintedEvent(ctx context.Context, even
 		func(ctx context.Context) error {
 			findReadModelByTicketID, err := r.findReadModelByBookingID(ctx, event.BookingID)
 			if err != nil {
-				log.FromContext(ctx).Error("OnTicketPrintedEvent. failed to find read model by booking ID: ", event.BookingID, " error:", err)
-				return fmt.Errorf("OnTicketPrintedEvent. failed to find read model by booking ID: %w", err)
+				log.FromContext(ctx).Error("OnTicketPrintedEvent. failed to find read model by booking BookingID: ", event.BookingID, " error:", err)
+				return fmt.Errorf("OnTicketPrintedEvent. failed to find read model by booking BookingID: %w", err)
 			}
 
 			if findReadModelByTicketID == nil {
@@ -379,8 +369,8 @@ func (r *OpsBookingReadModelRepo) OnTicketPrintedV0Event(ctx context.Context, ev
 		func(ctx context.Context) error {
 			findReadModelByTicketID, err := r.findReadModelByTicketID(ctx, event.TicketID)
 			if err != nil {
-				log.FromContext(ctx).Error("OnTicketPrintedEvent. failed to find read model by ticket ID: ", event.TicketID, ", ", " error:", err)
-				return fmt.Errorf("OnTicketPrintedEvent. failed to find read model by booking ID: %w", err)
+				log.FromContext(ctx).Error("OnTicketPrintedEvent. failed to find read model by ticket BookingID: ", event.TicketID, ", ", " error:", err)
+				return fmt.Errorf("OnTicketPrintedEvent. failed to find read model by booking BookingID: %w", err)
 			}
 
 			ticket, ok := findReadModelByTicketID.Tickets[event.TicketID]
@@ -389,12 +379,7 @@ func (r *OpsBookingReadModelRepo) OnTicketPrintedV0Event(ctx context.Context, ev
 				return fmt.Errorf("ticket with id %s not found", event.TicketID)
 			}
 
-			printedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse printed at time: %w", err)
-			}
-
-			ticket.PrintedAt = printedAt
+			ticket.PrintedAt = event.Header.PublishedAt
 			ticket.PrintedFileName = event.FileName
 
 			findReadModelByTicketID.Tickets[event.TicketID] = ticket
@@ -422,7 +407,7 @@ func (r *OpsBookingReadModelRepo) OnTicketRefundedEvent(ctx context.Context, eve
 		func(ctx context.Context) error {
 			findReadModelByTicketID, err := r.findReadModelByTicketID(ctx, event.TicketID)
 			if err != nil {
-				return fmt.Errorf("failed to find read model by ticket ID: %w", err)
+				return fmt.Errorf("failed to find read model by ticket BookingID: %w", err)
 			}
 
 			ticket, ok := findReadModelByTicketID.Tickets[event.TicketID]
@@ -430,12 +415,7 @@ func (r *OpsBookingReadModelRepo) OnTicketRefundedEvent(ctx context.Context, eve
 				return fmt.Errorf("ticket with id %s not found in booking with id %s", event.TicketID, findReadModelByTicketID.BookingID)
 			}
 
-			refundedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse confirmed at time: %w", err)
-			}
-
-			ticket.ConfirmedAt = refundedAt
+			ticket.ConfirmedAt = event.Header.PublishedAt
 			findReadModelByTicketID.Tickets[event.TicketID] = ticket
 
 			err = r.updateReadModel(ctx, findReadModelByTicketID)
@@ -454,7 +434,7 @@ func (r *OpsBookingReadModelRepo) findReadModelByBookingID(
 ) (*entities.OpsBooking, error) {
 	id, err := uuid.Parse(bookingID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ID: %w", err)
+		return nil, fmt.Errorf("failed to parse BookingID: %w", err)
 	}
 
 	var payload []byte
@@ -483,7 +463,7 @@ func (r *OpsBookingReadModelRepo) findReadModelByTicketID(
 ) (*entities.OpsBooking, error) {
 	id, err := uuid.Parse(ticketID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ID: %w", err)
+		return nil, fmt.Errorf("failed to parse BookingID: %w", err)
 	}
 
 	var payload []byte
@@ -552,17 +532,12 @@ func (r *OpsBookingReadModelRepo) OnTicketBookingConfirmedV0Event(ctx context.Co
 		func(ctx context.Context) error {
 			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
 			if err != nil {
-				return fmt.Errorf("OnTicketBookingConfirmedV0Event. failed to find read model by booking ID: %w", err)
+				return fmt.Errorf("OnTicketBookingConfirmedV0Event. failed to find read model by booking BookingID: %w", err)
 			}
 
 			ticket := findReadModelByBookingID.Tickets[event.TicketId]
 
-			confirmedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse confirmed at time: %w", err)
-			}
-
-			ticket.ConfirmedAt = confirmedAt
+			ticket.ConfirmedAt = event.Header.PublishedAt
 			ticket.PriceAmount = event.Price.Amount
 			ticket.PriceCurrency = event.Price.Currency
 			ticket.CustomerEmail = event.CustomerEmail
@@ -589,7 +564,7 @@ func (r *OpsBookingReadModelRepo) OnTicketBookingCanceledV0Event(ctx context.Con
 		func(ctx context.Context) error {
 			findReadModelByBookingID, err := r.findReadModelByBookingID(ctx, event.BookingId)
 			if err != nil {
-				return fmt.Errorf("OnTicketBookingCanceledV0Event. failed to find read model by booking ID: %w", err)
+				return fmt.Errorf("OnTicketBookingCanceledV0Event. failed to find read model by booking BookingID: %w", err)
 			}
 
 			ticket := findReadModelByBookingID.Tickets[event.TicketId]
@@ -618,7 +593,7 @@ func (r *OpsBookingReadModelRepo) OnTicketRefundedV0Event(ctx context.Context, e
 		func(ctx context.Context) error {
 			findReadModelByTicketID, err := r.findReadModelByTicketID(ctx, event.TicketID)
 			if err != nil {
-				return fmt.Errorf("failed to find read model by ticket ID: %w", err)
+				return fmt.Errorf("failed to find read model by ticket BookingID: %w", err)
 			}
 
 			ticket, ok := findReadModelByTicketID.Tickets[event.TicketID]
@@ -626,12 +601,7 @@ func (r *OpsBookingReadModelRepo) OnTicketRefundedV0Event(ctx context.Context, e
 				return fmt.Errorf("ticket with id %s not found", event.TicketID)
 			}
 
-			refundedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse refunded at time: %w", err)
-			}
-
-			ticket.RefundedAt = refundedAt
+			ticket.RefundedAt = event.Header.PublishedAt
 			findReadModelByTicketID.Tickets[event.TicketID] = ticket
 
 			err = r.updateReadModel(ctx, findReadModelByTicketID)

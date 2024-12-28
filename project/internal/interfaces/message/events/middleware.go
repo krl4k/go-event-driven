@@ -52,17 +52,24 @@ func CorrelationIDMiddleware(next message.HandlerFunc) message.HandlerFunc {
 }
 
 func LoggingMiddleware(next message.HandlerFunc) message.HandlerFunc {
-	return func(message *message.Message) ([]*message.Message, error) {
-		log.FromContext(message.Context()).
-			WithField("payload", string(message.Payload)).
-			WithField("metadata", message.Metadata).
+	return func(msg *message.Message) ([]*message.Message, error) {
+		topic := message.SubscribeTopicFromCtx(msg.Context())
+		handler := message.HandlerNameFromCtx(msg.Context())
+
+		log.FromContext(msg.Context()).
+			WithField("topic", topic).
+			WithField("handler", handler).
+			WithField("payload", string(msg.Payload)).
+			WithField("metadata", msg.Metadata).
 			Info("Handling a message")
 
-		messages, err := next(message)
+		messages, err := next(msg)
 
 		if err != nil {
-			log.FromContext(message.Context()).
-				WithField("payload", string(message.Payload)).
+			log.FromContext(msg.Context()).
+				WithField("topic", topic).
+				WithField("handler", handler).
+				WithField("payload", string(msg.Payload)).
 				WithField("error", err).
 				Error("Message handling error")
 		}

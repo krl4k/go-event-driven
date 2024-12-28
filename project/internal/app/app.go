@@ -24,6 +24,7 @@ import (
 	"tickets/internal/application/usecases/booking"
 	"tickets/internal/application/usecases/shows"
 	"tickets/internal/application/usecases/tickets"
+	"tickets/internal/application/usecases/vipbundle"
 	"tickets/internal/entities"
 	"tickets/internal/infrastructure/event_publisher"
 	"tickets/internal/interfaces/http"
@@ -93,6 +94,7 @@ func NewApp(
 	opsBookingReadModelRepo := repository.NewOpsBookingReadModelRepo(
 		db, trmsqlx.DefaultCtxGetter, trManager, eventBus)
 	eventsRepo := repository.NewEventsRepo(db)
+	vipBundleRepo := repository.NewVipBundle(db, trmsqlx.DefaultCtxGetter)
 
 	commandBus, err := commands.NewBus(redisPublisher, watermillLogger)
 
@@ -105,6 +107,9 @@ func NewApp(
 		trmsqlx.DefaultCtxGetter,
 		watermillLogger,
 	)
+	vipBundleCreateUsecase := vipbundle.NewCreateBundleUsecase(vipBundleRepo, bookingsService, trManager, trmsqlx.DefaultCtxGetter, watermillLogger)
+
+	vipBundleEventHandler := events.NewVipBundleProcessManager(commandBus, eventBus, vipBundleRepo)
 
 	e := commonHTTP.NewEcho()
 	srv := http.NewServer(
@@ -114,6 +119,7 @@ func NewApp(
 		showsService,
 		bookingsService,
 		opsBookingReadModelRepo,
+		vipBundleCreateUsecase,
 	)
 
 	redisSubscriber, err := redisstream.NewSubscriber(redisstream.SubscriberConfig{Client: redisClient}, watermillLogger)
@@ -156,6 +162,7 @@ func NewApp(
 		eventBus,
 		paymentsClient,
 		receiptsClient,
+		bookingsService,
 	)
 
 	router, err := message.NewRouter(
@@ -174,6 +181,7 @@ func NewApp(
 		commands.NewCommandProcessorConfig(redisClient, watermillLogger),
 		eventsRepo,
 		opsBookingReadModelRepo,
+		vipBundleEventHandler,
 	)
 	if err != nil {
 		return nil, err

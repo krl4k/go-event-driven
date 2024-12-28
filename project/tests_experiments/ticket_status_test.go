@@ -32,7 +32,7 @@ type TicketsConfirmationRequest struct {
 func (s *ComponentTestSuite) TestTicketStatusConfirmation() {
 	ticketID := uuid.NewString()
 
-	fmt.Println("Creating ticket with ID: ", ticketID)
+	fmt.Println("Creating ticket with BookingID: ", ticketID)
 
 	testRequest := TicketsConfirmationRequest{
 		Tickets: []Ticket{
@@ -68,7 +68,7 @@ func (s *ComponentTestSuite) TestTicketStatusConfirmation() {
 
 			found := false
 			for _, receipt := range *receipts.JSON200 {
-				fmt.Printf("receipt.TicketId: %s, %s\n", receipt.TicketId, receipt.Number)
+				fmt.Printf("receipt.TicketID: %s, %s\n", receipt.TicketId, receipt.Number)
 
 				if receipt.TicketId == ticketID {
 					found = true

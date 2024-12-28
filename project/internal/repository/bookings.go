@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"tickets/internal/entities"
 )
 
@@ -24,28 +26,49 @@ func NewBookingsRepo(
 	}
 }
 
-func (r *BookingsRepo) CreateBooking(ctx context.Context, booking entities.Booking) (uuid.UUID, error) {
-	var id uuid.UUID
+const (
+	postgresUniqueValueViolationErrorCode = "23505"
+)
 
+func isErrorUniqueViolation(err error) bool {
+	var psqlErr *pq.Error
+	return errors.As(err, &psqlErr) && psqlErr.Code == postgresUniqueValueViolationErrorCode
+}
+
+var ErrBookingAlreadyExists = errors.New("booking already exists")
+
+func (r *BookingsRepo) CreateBooking(ctx context.Context, booking entities.Booking) (uuid.UUID, error) {
 	query := `
 		INSERT INTO bookings (
-			show_id, number_of_tickets, customer_email
+			id, show_id, number_of_tickets, customer_email
 		) VALUES (
-			$1, $2, $3
-		) RETURNING id`
+			$1, $2, $3, $4
+		)`
 
-	err := r.getter.DefaultTrOrDB(ctx, r.db).
-		QueryRowContext(ctx, query,
+	res, err := r.getter.DefaultTrOrDB(ctx, r.db).
+		ExecContext(ctx, query,
+			booking.Id,
 			booking.ShowId,
 			booking.NumberOfTickets,
 			booking.CustomerEmail,
-		).Scan(&id)
+		)
 
 	if err != nil {
-		return uuid.Nil, err
+		if isErrorUniqueViolation(err) {
+			// deduplication
+			return uuid.Nil, ErrBookingAlreadyExists
+		}
+		return uuid.Nil, fmt.Errorf("insert booking: %w", err)
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if count == 0 {
+		return uuid.Nil, fmt.Errorf("no rows affected")
 	}
 
-	return id, nil
+	return booking.Id, nil
 }
 
 func (r *BookingsRepo) GetBookingsCountByShowID(ctx context.Context, showID uuid.UUID) (int64, error) {

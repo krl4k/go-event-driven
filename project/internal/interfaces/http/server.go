@@ -15,6 +15,7 @@ import (
 	"tickets/internal/application/usecases/booking"
 	"tickets/internal/application/usecases/shows"
 	"tickets/internal/application/usecases/tickets"
+	"tickets/internal/application/usecases/vipbundle"
 	"tickets/internal/repository"
 )
 
@@ -25,6 +26,7 @@ type Server struct {
 	ticketsService          *tickets.ProcessTicketsUsecase
 	showsService            *shows.CreateShowUsecase
 	bookingsService         *booking.BookTicketsUsecase
+	vipBundleUsecase        *vipbundle.CreateBundleUsecase
 	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo
 }
 
@@ -35,6 +37,7 @@ func NewServer(
 	showsService *shows.CreateShowUsecase,
 	bookingsService *booking.BookTicketsUsecase,
 	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo,
+	vipBundleUsecase *vipbundle.CreateBundleUsecase,
 ) *Server {
 	srv := &Server{
 		e:                       e,
@@ -43,6 +46,7 @@ func NewServer(
 		showsService:            showsService,
 		bookingsService:         bookingsService,
 		opsBookingReadModelRepo: opsBookingReadModelRepo,
+		vipBundleUsecase:        vipBundleUsecase,
 	}
 	e.POST("/tickets-status", srv.TicketsStatusHandler)
 	e.GET("/tickets", srv.GetTicketsHandler)
@@ -54,6 +58,8 @@ func NewServer(
 
 	e.GET("/ops/bookings", srv.GetBookingsHandler)
 	e.GET("/ops/bookings/:booking_id", srv.GetBookingHandler)
+
+	e.POST("/book-vip-bundle", srv.BookVIPBundleHandler)
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.String(http.StatusOK, "ok")

@@ -7,6 +7,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/lib/pq"
 	"net/http"
+	"tickets/internal/application/usecases/booking"
 	"tickets/internal/entities"
 )
 
@@ -17,7 +18,7 @@ type BookTicketsRequest struct {
 }
 
 type BookTicketsResponse struct {
-	ID uuid.UUID `json:"booking_id"`
+	BookingID uuid.UUID `json:"booking_id"`
 }
 
 func (s *Server) BookTicketsHandler(c echo.Context) error {
@@ -33,7 +34,7 @@ func (s *Server) BookTicketsHandler(c echo.Context) error {
 	pgErr := &pq.Error{}
 	for i := 0; i < 5; i++ {
 		bookingID, err = s.bookingsService.BookTickets(ctx,
-			entities.Booking{
+			booking.CreateBookingReq{
 				ShowId:          request.ShowId,
 				NumberOfTickets: request.NumberOfTickets,
 				CustomerEmail:   request.CustomerEmail,
@@ -58,7 +59,7 @@ func (s *Server) BookTicketsHandler(c echo.Context) error {
 
 	return c.JSON(http.StatusCreated,
 		BookTicketsResponse{
-			ID: bookingID,
+			BookingID: bookingID,
 		},
 	)
 }

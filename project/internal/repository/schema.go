@@ -75,6 +75,16 @@ CREATE TABLE IF NOT EXISTS events (
 		return fmt.Errorf("failed to create events table: %w", err)
 	}
 
+	_, err = db.ExecContext(context.Background(), `
+CREATE TABLE IF NOT EXISTS vip_bundles (
+	vip_bundle_id UUID PRIMARY KEY,
+	booking_id UUID NOT NULL UNIQUE,
+	payload JSONB NOT NULL
+);`)
+	if err != nil {
+		return fmt.Errorf("create vip_bundles table: %w", err)
+	}
+
 	log.FromContext(context.Background()).Info("Database schema initialized")
 	return nil
 }

@@ -93,8 +93,8 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		event := &entities.
 			TicketBookingConfirmed_v1{
 			Header:        entities.NewEventHeader(),
-			BookingId:     bookingID.String(),
-			TicketId:      ticketID.String(),
+			BookingID:     bookingID.String(),
+			TicketID:      ticketID.String(),
 			CustomerEmail: "test@example.com",
 			Price: entities.Money{
 				Amount:   "100.00",
@@ -131,8 +131,8 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 
 		err = repo.OnTicketBookingConfirmedEvent(ctx, &entities.TicketBookingConfirmed_v1{
 			Header:        entities.NewEventHeader(),
-			BookingId:     bookingID.String(),
-			TicketId:      ticketID.String(),
+			BookingID:     bookingID.String(),
+			TicketID:      ticketID.String(),
 			CustomerEmail: "test@example.com",
 			Price: entities.Money{
 				Amount:   "100.00",
@@ -175,8 +175,8 @@ func TestOpsBookingReadModelRepo_Integration(t *testing.T) {
 		// Confirm ticket first
 		err = repo.OnTicketBookingConfirmedEvent(ctx, &entities.TicketBookingConfirmed_v1{
 			Header:        entities.NewEventHeader(),
-			BookingId:     bookingID.String(),
-			TicketId:      ticketID.String(),
+			BookingID:     bookingID.String(),
+			TicketID:      ticketID.String(),
 			CustomerEmail: "test@example.com",
 			Price:         entities.Money{Amount: "100.00", Currency: "USD"},
 		})

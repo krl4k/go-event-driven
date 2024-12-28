@@ -34,18 +34,18 @@ func (s *ProcessTicketsUsecase) ProcessTickets(
 ) error {
 	for _, ticket := range tickets {
 		if ticket.Status == "confirmed" {
-			log.FromContext(ctx).Info("Publishing TicketBookingConfirmed_v1 with id:"+ticket.TicketId, " Booking ID: ", ticket.BookingId)
+			log.FromContext(ctx).Info("Publishing TicketBookingConfirmed_v1 with id:"+ticket.TicketId, " Booking BookingID: ", ticket.BookingId)
 			err := s.eb.Publish(ctx, entities.TicketBookingConfirmed_v1{
 				Header: entities.NewEventHeaderWithIdempotencyKey(
 					idempotency.GetKey(ctx) + ticket.TicketId,
 				),
-				TicketId:      ticket.TicketId,
+				TicketID:      ticket.TicketId,
 				CustomerEmail: ticket.CustomerEmail,
 				Price: entities.Money{
 					Amount:   ticket.Price.Amount,
 					Currency: ticket.Price.Currency,
 				},
-				BookingId: ticket.BookingId,
+				BookingID: ticket.BookingId,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to publish TicketBookingConfirmed_v1: %w", err)

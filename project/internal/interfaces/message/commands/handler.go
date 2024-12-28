@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
+	"tickets/internal/application/usecases/booking"
 )
 
 type PaymentsService interface {
@@ -14,19 +15,22 @@ type ReceiptsService interface {
 }
 
 type Handler struct {
-	eb              *cqrs.EventBus
-	paymentService  PaymentsService
-	receiptsService ReceiptsService
+	eb                 *cqrs.EventBus
+	paymentService     PaymentsService
+	receiptsService    ReceiptsService
+	bookTicketsUsecase *booking.BookTicketsUsecase
 }
 
 func NewHandler(
 	eb *cqrs.EventBus,
 	paymentService PaymentsService,
 	receiptsService ReceiptsService,
+	bookTicketsUsecase *booking.BookTicketsUsecase,
 ) *Handler {
 	return &Handler{
-		eb:              eb,
-		paymentService:  paymentService,
-		receiptsService: receiptsService,
+		eb:                 eb,
+		paymentService:     paymentService,
+		receiptsService:    receiptsService,
+		bookTicketsUsecase: bookTicketsUsecase,
 	}
 }

@@ -14,7 +14,7 @@ package tests
 //)
 //
 //func (suite *ComponentTestSuite) TestRefundTicket() {
-//	// Setup - first create a show and book a ticket to get a valid ticket ID
+//	// Setup - first create a show and book a ticket to get a valid ticket BookingID
 //	showID := uuid.New()
 //	_, err := suite.db.ExecContext(suite.ctx, `
 //		INSERT INTO shows (
@@ -60,7 +60,7 @@ package tests
 //		}).
 //		Times(1)
 //
-//	// Book a ticket first to get a valid ticket ID
+//	// Book a ticket first to get a valid ticket BookingID
 //	bookRequest := struct {
 //		ShowID          uuid.UUID `json:"show_id"`
 //		NumberOfTickets int       `json:"number_of_tickets"`

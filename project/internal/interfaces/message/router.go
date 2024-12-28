@@ -30,6 +30,7 @@ func NewRouter(
 
 	eventsRepo events.EventRepository,
 	opsBookingReadModelRepo *repository.OpsBookingReadModelRepo,
+	vipBundleProcessManager *events.VipBundleProcessManager,
 ) (*message.Router, error) {
 
 	router, err := message.NewRouter(message.RouterConfig{}, watermillLogger)
@@ -65,6 +66,40 @@ func NewRouter(
 		// BookingMade handlers
 		eventHandler.TicketBookingHandler(),
 
+		// VIP bundle handlers
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_vip_bundle_initialized",
+			vipBundleProcessManager.OnVipBundleInitialized,
+		),
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_booking_made",
+			vipBundleProcessManager.OnBookingMade,
+		),
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_ticket_booking_confirmed",
+			vipBundleProcessManager.OnTicketBookingConfirmed,
+		),
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_flight_booked",
+			vipBundleProcessManager.OnFlightBooked,
+		),
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_taxi_booked",
+			vipBundleProcessManager.OnTaxiBooked,
+		),
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_booking_failed",
+			vipBundleProcessManager.OnBookingFailed,
+		),
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_flight_booking_failed",
+			vipBundleProcessManager.OnFlightBookingFailed,
+		),
+		cqrs.NewEventHandler(
+			"vip_bundle_process_manager.on_taxi_booking_failed",
+			vipBundleProcessManager.OnTaxiBookingFailed,
+		),
+
 		// Read model handlers
 		cqrs.NewEventHandler(
 			"ops_booking_read_model.on_booking_made",
@@ -89,6 +124,7 @@ func NewRouter(
 	}
 	err = commandsProcessor.AddHandlers(
 		commandsHandler.RefundTicketsHandler(),
+		commandsHandler.BookShowTicketsHandler(),
 	)
 	if err != nil {
 		return nil, err
@@ -128,21 +164,16 @@ func NewRouter(
 				return fmt.Errorf("cannot get event name from message")
 			}
 
-			publishedAt, err := time.Parse(time.RFC3339, event.Header.PublishedAt)
-			if err != nil {
-				return fmt.Errorf("failed to parse published_at for event %s: %w", eventName, err)
-			}
-
 			id, err := uuid.Parse(event.Header.Id)
 			if err != nil {
-				return fmt.Errorf("failed to parse ID: %w", err)
+				return fmt.Errorf("failed to parse BookingID: %w", err)
 			}
 
 			err = eventsRepo.SaveEvent(
 				msg.Context(),
 				entities.DatalakeEvent{
 					Id:          id,
-					PublishedAt: publishedAt,
+					PublishedAt: event.Header.PublishedAt,
 					EventName:   eventName,
 					Payload:     msg.Payload,
 				},

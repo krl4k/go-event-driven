@@ -19,7 +19,7 @@ func (s *Server) RefundTicketHandler(ctx echo.Context) error {
 
 	err := s.commandBus.Send(ctx.Request().Context(), &entities.RefundTicket{
 		Header:   entities.NewEventHeader(),
-		TicketId: ticketId,
+		TicketID: ticketId,
 	})
 	if err != nil {
 		return err

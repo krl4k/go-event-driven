@@ -6,15 +6,15 @@ import (
 )
 
 type EventHeader struct {
-	Id             string `json:"id"`
-	PublishedAt    string `json:"published_at"`
-	IdempotencyKey string `json:"idempotency_key"`
+	Id             string    `json:"id"`
+	PublishedAt    time.Time `json:"published_at"`
+	IdempotencyKey string    `json:"idempotency_key"`
 }
 
 func NewEventHeader() EventHeader {
 	return EventHeader{
 		Id:             uuid.NewString(),
-		PublishedAt:    time.Now().Format(time.RFC3339),
+		PublishedAt:    time.Now(),
 		IdempotencyKey: uuid.NewString(),
 	}
 }
@@ -22,7 +22,7 @@ func NewEventHeader() EventHeader {
 func NewEventHeaderWithIdempotencyKey(idempotencyKey string) EventHeader {
 	return EventHeader{
 		Id:             uuid.NewString(),
-		PublishedAt:    time.Now().Format(time.RFC3339),
+		PublishedAt:    time.Now(),
 		IdempotencyKey: idempotencyKey,
 	}
 }

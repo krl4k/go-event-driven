@@ -16,7 +16,7 @@ import (
 	"tickets/internal/entities"
 	"tickets/internal/interfaces/message/events"
 	"tickets/internal/interfaces/message/outbox"
-	"tickets/internal/observability"
+	"tickets/internal/repository"
 	"time"
 )
 
@@ -78,7 +78,14 @@ func WithRetry(attempts int, f func(context.Context) error) func(context.Context
 	}
 }
 
-func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking entities.Booking) (uuid.UUID, error) {
+type CreateBookingReq struct {
+	BookingID       *uuid.UUID
+	ShowId          uuid.UUID
+	NumberOfTickets int
+	CustomerEmail   string
+}
+
+func (s *BookTicketsUsecase) BookTickets(ctx context.Context, req CreateBookingReq) (uuid.UUID, error) {
 	var id uuid.UUID
 	var err error
 	err = s.trManager.DoWithSettings(
@@ -89,25 +96,38 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking entities.B
 		),
 		func(ctx context.Context) error {
 			var show *entities.Show
-			show, err = s.showsRepo.GetShow(ctx, booking.ShowId)
+			show, err = s.showsRepo.GetShow(ctx, req.ShowId)
 			if err != nil {
 				return fmt.Errorf("failed to get show: %w", err)
 			}
 			log.FromContext(ctx).Info("show number of tickets: ", show.NumberOfTickets)
 
 			var bookingsCount int64
-			bookingsCount, err = s.bookingRepo.GetBookingsCountByShowID(ctx, booking.ShowId)
+			bookingsCount, err = s.bookingRepo.GetBookingsCountByShowID(ctx, req.ShowId)
 			if err != nil {
 				return fmt.Errorf("failed to get bookings count: %w", err)
 			}
 			log.FromContext(ctx).Info("bookings count: ", bookingsCount)
 
-			if int(bookingsCount)+booking.NumberOfTickets > show.NumberOfTickets {
-				return fmt.Errorf("tickets available: %d, requested: %d, %w", show.NumberOfTickets-int(bookingsCount), booking.NumberOfTickets, entities.ErrNotEnoughTickets)
+			if int(bookingsCount)+req.NumberOfTickets > show.NumberOfTickets {
+				return fmt.Errorf("tickets available: %d, requested: %d, %w", show.NumberOfTickets-int(bookingsCount), req.NumberOfTickets, entities.ErrNotEnoughTickets)
 			}
 
+			booking := entities.Booking{
+				ShowId:          req.ShowId,
+				NumberOfTickets: req.NumberOfTickets,
+				CustomerEmail:   req.CustomerEmail,
+			}
+			if req.BookingID != nil {
+				booking.Id = *req.BookingID
+			} else {
+				booking.Id = uuid.New()
+			}
 			id, err = s.bookingRepo.CreateBooking(ctx, booking)
 			if err != nil {
+				if errors.Is(err, repository.ErrBookingAlreadyExists) {
+					return nil
+				}
 				return fmt.Errorf("failed to create booking: %w", err)
 			}
 
@@ -121,15 +141,13 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking entities.B
 				return fmt.Errorf("failed to create event publisher: %w", err)
 			}
 
-			publisherWithTracing := observability.PublisherWithTracing{Publisher: publisher}
-
-			eb, err := events.NewEventBus(publisherWithTracing, s.watermillLogger)
+			eb, err := events.NewEventBus(publisher, s.watermillLogger)
 			if err != nil {
 				return fmt.Errorf("failed to create event bus: %w", err)
 			}
 
 			log.FromContext(ctx).Info("publishing booking made event")
-			return eb.Publish(ctx, entities.BookingMade_v1{
+			err = eb.Publish(ctx, entities.BookingMade_v1{
 				Header:          entities.NewEventHeader(),
 				BookingID:       id,
 				NumberOfTickets: booking.NumberOfTickets,
@@ -137,6 +155,11 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, booking entities.B
 				ShowID:          booking.ShowId,
 				BookedAt:        time.Now().UTC(),
 			})
+			if err != nil {
+				return fmt.Errorf("publish booking made event: %w", err)
+			}
+
+			return nil
 		})
 
 	return id, err

@@ -11,10 +11,10 @@ type Event interface {
 
 type TicketBookingConfirmed_v1 struct {
 	Header        EventHeader `json:"header"`
-	TicketId      string      `json:"ticket_id"`
+	TicketID      string      `json:"ticket_id"`
 	CustomerEmail string      `json:"customer_email"`
 	Price         Money       `json:"price"`
-	BookingId     string      `json:"booking_id"`
+	BookingID     string      `json:"booking_id"`
 }
 
 func (t TicketBookingConfirmed_v1) IsInternal() bool {

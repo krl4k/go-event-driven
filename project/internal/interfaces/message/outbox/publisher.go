@@ -5,13 +5,14 @@ import (
 	"github.com/ThreeDotsLabs/watermill"
 	watermillSQL "github.com/ThreeDotsLabs/watermill-sql/v2/pkg/sql"
 	"github.com/ThreeDotsLabs/watermill/components/forwarder"
+	"github.com/ThreeDotsLabs/watermill/message"
 	"tickets/internal/observability"
 )
 
 func NewPublisher(
 	tx watermillSQL.ContextExecutor,
 	logger watermill.LoggerAdapter,
-) (*forwarder.Publisher, error) {
+) (message.Publisher, error) {
 	publisher, err := watermillSQL.NewPublisher(
 		tx,
 		watermillSQL.PublisherConfig{
@@ -29,5 +30,6 @@ func NewPublisher(
 		ForwarderTopic: Topic,
 	})
 
+	//return observability.PublisherWithTracing{Publisher: fpublisher}, nil
 	return fpublisher, nil
 }
