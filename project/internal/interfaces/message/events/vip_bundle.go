@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"
 	"tickets/internal/entities"
-	"github.com/google/uuid"
+	"tickets/internal/repository"
 )
 
 type CommandBus interface {

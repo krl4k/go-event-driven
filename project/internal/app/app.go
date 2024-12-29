@@ -4,6 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"tickets/internal/application/usecases/booking"
+	"tickets/internal/application/usecases/shows"
+	"tickets/internal/application/usecases/tickets"
+	"tickets/internal/application/usecases/vipbundle"
+	"tickets/internal/entities"
+	"tickets/internal/infrastructure/event_publisher"
+	"tickets/internal/interfaces/http"
+	"tickets/internal/interfaces/message"
+	"tickets/internal/interfaces/message/commands"
+	events "tickets/internal/interfaces/message/events"
+	outbox "tickets/internal/interfaces/message/outbox"
+	"tickets/internal/observability"
+	"tickets/internal/repository"
+	"time"
+
 	commonHTTP "github.com/ThreeDotsLabs/go-event-driven/common/http"
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	_ "github.com/ThreeDotsLabs/go-event-driven/common/log"
@@ -20,21 +36,6 @@ import (
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/sync/errgroup"
-	"os"
-	"tickets/internal/application/usecases/booking"
-	"tickets/internal/application/usecases/shows"
-	"tickets/internal/application/usecases/tickets"
-	"tickets/internal/application/usecases/vipbundle"
-	"tickets/internal/entities"
-	"tickets/internal/infrastructure/event_publisher"
-	"tickets/internal/interfaces/http"
-	"tickets/internal/interfaces/message"
-	"tickets/internal/interfaces/message/commands"
-	events "tickets/internal/interfaces/message/events"
-	outbox "tickets/internal/interfaces/message/outbox"
-	"tickets/internal/observability"
-	"tickets/internal/repository"
-	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -67,6 +68,7 @@ func NewApp(
 	filesClient FileStorageService,
 	deadNationClient DeadNationService,
 	paymentsClient PaymentsService,
+	transportationClient TransportationService,
 	redisClient *redis.Client,
 	db *sqlx.DB,
 	tp *trace.TracerProvider,
@@ -163,6 +165,7 @@ func NewApp(
 		paymentsClient,
 		receiptsClient,
 		bookingsService,
+		transportationClient,
 	)
 
 	router, err := message.NewRouter(

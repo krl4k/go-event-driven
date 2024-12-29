@@ -2,6 +2,13 @@ package tests
 
 import (
 	"context"
+	"net/http"
+	"os"
+	"testing"
+	"tickets/internal/app"
+	"tickets/internal/app/mocks"
+	"time"
+
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/golang/mock/gomock"
 	"github.com/jmoiron/sqlx"
@@ -9,24 +16,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"net/http"
-	"os"
-	"testing"
-	"tickets/internal/app"
-	"tickets/internal/app/mocks"
-	"time"
 )
 
 type ComponentTestSuite struct {
 	suite.Suite
-	ctrl             *gomock.Controller
-	spreadsheetsMock *mocks.MockSpreadsheetsService
-	receiptsMock     *mocks.MockReceiptsService
-	filesMock        *mocks.MockFileStorageService
-	deadNationMock   *mocks.MockDeadNationService
-	paymentsMock     *mocks.MockPaymentsService
-
-	ctx context.Context
+	ctrl               *gomock.Controller
+	spreadsheetsMock   *mocks.MockSpreadsheetsService
+	receiptsMock       *mocks.MockReceiptsService
+	filesMock          *mocks.MockFileStorageService
+	deadNationMock     *mocks.MockDeadNationService
+	paymentsMock       *mocks.MockPaymentsService
+	transportationMock *mocks.MockTransportationService
+	ctx                context.Context
 	//redisContainer   testcontainers.Container
 	redisClient *redis.Client
 	db          *sqlx.DB
@@ -97,6 +98,7 @@ func (suite *ComponentTestSuite) SetupSuite() {
 		suite.filesMock,
 		suite.deadNationMock,
 		suite.paymentsMock,
+		suite.transportationMock,
 		suite.redisClient,
 		suite.db,
 	)

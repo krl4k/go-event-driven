@@ -3,10 +3,11 @@ package tickets
 import (
 	"context"
 	"fmt"
-	"github.com/ThreeDotsLabs/go-event-driven/common/log"
-	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"tickets/internal/entities"
 	"tickets/internal/idempotency"
+
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 )
 
 type TicketsRepository interface {
@@ -75,4 +76,56 @@ func (s *ProcessTicketsUsecase) GetTickets(ctx context.Context) ([]entities.Tick
 	tickets, err := s.ticketsRepo.List(ctx)
 
 	return tickets, err
+}
+
+type Service struct {
+	transportationClient TransportationClient
+	// add other dependencies as needed
+}
+
+func NewService(transportationClient TransportationClient) *Service {
+	return &Service{
+		transportationClient: transportationClient,
+	}
+}
+
+type TransportationClient interface {
+	BookTaxi(ctx context.Context, request BookTaxiRequest) error
+	BookFlight(ctx context.Context, request BookFlightRequest) error
+}
+
+type BookTicketCommand struct {
+	TicketID string
+	// Add other fields you need
+}
+
+type BookFlightCommand struct {
+	TicketID string
+	// Add other fields you need
+}
+
+func (s *Service) BookTicket(ctx context.Context, cmd BookTicketCommand) error {
+	// Implement taxi booking logic
+	return s.transportationClient.BookTaxi(ctx, BookTaxiRequest{
+		TicketID: cmd.TicketID,
+		// Add other fields
+	})
+}
+
+func (s *Service) BookFlight(ctx context.Context, cmd BookFlightCommand) error {
+	// Implement flight booking logic
+	return s.transportationClient.BookFlight(ctx, BookFlightRequest{
+		TicketID: cmd.TicketID,
+		// Add other fields
+	})
+}
+
+type BookTaxiRequest struct {
+	TicketID string
+	// Add other fields
+}
+
+type BookFlightRequest struct {
+	TicketID string
+	// Add other fields
 }

@@ -139,6 +139,10 @@ type FlightBooked_v1 struct {
 	ReferenceID string `json:"reference_id"`
 }
 
+func (t FlightBooked_v1) IsInternal() bool {
+	return false
+}
+
 type FlightBookingFailed_v1 struct {
 	Header EventHeader `json:"header"`
 
@@ -151,6 +155,10 @@ type FlightBookingFailed_v1 struct {
 	ReferenceID string `json:"reference_id"`
 }
 
+func (t FlightBookingFailed_v1) IsInternal() bool {
+	return false
+}
+
 type TaxiBooked_v1 struct {
 	Header EventHeader `json:"header"`
 
@@ -159,10 +167,18 @@ type TaxiBooked_v1 struct {
 	ReferenceID string `json:"reference_id"`
 }
 
+func (t TaxiBooked_v1) IsInternal() bool {
+	return false
+}
+
 type VipBundleFinalized_v1 struct {
 	Header EventHeader `json:"header"`
 
 	VipBundleID uuid.UUID `json:"vip_bundle_id"`
+}
+
+func (t VipBundleFinalized_v1) IsInternal() bool {
+	return false
 }
 
 type TaxiBookingFailed_v1 struct {
@@ -171,4 +187,8 @@ type TaxiBookingFailed_v1 struct {
 	FailureReason string `json:"failure_reason"`
 
 	ReferenceID string `json:"reference_id"`
+}
+
+func (t TaxiBookingFailed_v1) IsInternal() bool {
+	return false
 }

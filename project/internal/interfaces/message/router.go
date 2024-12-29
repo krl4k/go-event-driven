@@ -2,17 +2,18 @@ package message
 
 import (
 	"fmt"
-	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill/components/cqrs"
-	"github.com/ThreeDotsLabs/watermill/message"
-	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
-	"github.com/google/uuid"
 	"tickets/internal/entities"
 	"tickets/internal/interfaces/message/commands"
 	"tickets/internal/interfaces/message/events"
 	"tickets/internal/interfaces/message/outbox"
 	"tickets/internal/repository"
 	"time"
+
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
+	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
+	"github.com/google/uuid"
 )
 
 func NewRouter(
@@ -125,6 +126,8 @@ func NewRouter(
 	err = commandsProcessor.AddHandlers(
 		commandsHandler.RefundTicketsHandler(),
 		commandsHandler.BookShowTicketsHandler(),
+		commandsHandler.BookFlightHandler(),
+		commandsHandler.BookTaxiHandler(),
 	)
 	if err != nil {
 		return nil, err

@@ -2,9 +2,10 @@ package app
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"tickets/internal/entities"
 	"tickets/internal/infrastructure/clients"
+
+	"github.com/google/uuid"
 )
 
 //go:generate mockgen -destination=mocks/spreadsheets_service_mock.go -package=mocks . SpreadsheetsService
@@ -42,4 +43,10 @@ type ShowsRepository interface {
 //go:generate mockgen -destination=mocks/payments_service_mock.go -package=mocks . PaymentsService
 type PaymentsService interface {
 	Refund(ctx context.Context, ticketID, idempotencyKey string) error
+}
+
+//go:generate mockgen -destination=mocks/transportation_service_mock.go -package=mocks . TransportationService
+type TransportationService interface {
+	BookTaxi(ctx context.Context, request *clients.BookTaxiRequest) (*clients.BookTaxiResponse, error)
+	BookFlightTicket(ctx context.Context, request *clients.BookFlightTicketRequest) (*clients.BookFlightTicketResponse, error)
 }

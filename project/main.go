@@ -57,6 +57,7 @@ func main() {
 	filesClient := clients.NewFilesClient(commonClients)
 	deadNationClient := clients.NewDeadNationClient(commonClients)
 	paymentsClient := clients.NewPaymentsClient(commonClients)
+	transportationClient := clients.NewTransportationClient(commonClients)
 
 	traceDB, err := otelsql.Open("postgres", os.Getenv("POSTGRES_URL"),
 		otelsql.WithAttributes(semconv.DBSystemPostgreSQL),
@@ -76,6 +77,7 @@ func main() {
 		filesClient,
 		deadNationClient,
 		paymentsClient,
+		transportationClient,
 		rdb,
 		db,
 		tp,

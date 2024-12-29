@@ -2,10 +2,11 @@ package events
 
 import (
 	"context"
-	"github.com/ThreeDotsLabs/watermill/components/cqrs"
-	"github.com/google/uuid"
 	"tickets/internal/entities"
 	"tickets/internal/infrastructure/clients"
+
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
+	"github.com/google/uuid"
 )
 
 //go:generate mockgen -destination=mocks/spreadsheets_service_mock.go -package=mocks . SpreadsheetsService
