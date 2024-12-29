@@ -5,19 +5,21 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"tickets/internal/entities"
+	"tickets/internal/interfaces/message/events"
+	"tickets/internal/interfaces/message/outbox"
+	"tickets/internal/repository"
+	"time"
+
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	trmsql "github.com/avito-tech/go-transaction-manager/drivers/sql/v2"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	trmanager "github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/settings"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"tickets/internal/entities"
-	"tickets/internal/interfaces/message/events"
-	"tickets/internal/interfaces/message/outbox"
-	"tickets/internal/repository"
-	"time"
 )
 
 //go:generate mockgen -destination=mocks/mock_bookings_repo.go -package=mocks tickets/internal/application/usecases/booking BookingsRepo
@@ -32,6 +34,7 @@ type ShowsRepo interface {
 }
 
 type BookTicketsUsecase struct {
+	eb              *cqrs.EventBus
 	bookingRepo     BookingsRepo
 	showsRepo       ShowsRepo
 	trManager       *trmanager.Manager
@@ -40,6 +43,7 @@ type BookTicketsUsecase struct {
 }
 
 func NewBookTicketsUsecase(
+	eb *cqrs.EventBus,
 	bookingRepo BookingsRepo,
 	showsRepo ShowsRepo,
 	trManager *trmanager.Manager,
@@ -47,6 +51,7 @@ func NewBookTicketsUsecase(
 	watermillLogger watermill.LoggerAdapter,
 ) *BookTicketsUsecase {
 	return &BookTicketsUsecase{
+		eb:              eb,
 		bookingRepo:     bookingRepo,
 		showsRepo:       showsRepo,
 		trManager:       trManager,
@@ -95,6 +100,13 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, req CreateBookingR
 			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelSerializable}),
 		),
 		func(ctx context.Context) error {
+			var bookingID uuid.UUID
+			if req.BookingID != nil {
+				bookingID = *req.BookingID
+			} else {
+				bookingID = uuid.New()
+			}
+
 			var show *entities.Show
 			show, err = s.showsRepo.GetShow(ctx, req.ShowId)
 			if err != nil {
@@ -110,19 +122,25 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, req CreateBookingR
 			log.FromContext(ctx).Info("bookings count: ", bookingsCount)
 
 			if int(bookingsCount)+req.NumberOfTickets > show.NumberOfTickets {
-				return fmt.Errorf("tickets available: %d, requested: %d, %w", show.NumberOfTickets-int(bookingsCount), req.NumberOfTickets, entities.ErrNotEnoughTickets)
+				log.FromContext(ctx).Error("not enough tickets available")
+				err = s.eb.Publish(ctx, &entities.BookingFailed_v1{
+					Header:        entities.NewEventHeader(),
+					BookingID:     bookingID,
+					FailureReason: "not enough tickets available",
+				})
+				if err != nil {
+					return fmt.Errorf("failed to publish booking failed event: %w", err)
+				}
+				return nil
 			}
 
 			booking := entities.Booking{
+				Id:              bookingID,
 				ShowId:          req.ShowId,
 				NumberOfTickets: req.NumberOfTickets,
 				CustomerEmail:   req.CustomerEmail,
 			}
-			if req.BookingID != nil {
-				booking.Id = *req.BookingID
-			} else {
-				booking.Id = uuid.New()
-			}
+
 			id, err = s.bookingRepo.CreateBooking(ctx, booking)
 			if err != nil {
 				if errors.Is(err, repository.ErrBookingAlreadyExists) {

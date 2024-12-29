@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"tickets/internal/entities"
 	"tickets/internal/repository"
+
+	"github.com/google/uuid"
 )
 
 type CommandBus interface {
@@ -128,6 +129,14 @@ func (v VipBundleProcessManager) OnFlightBooked(ctx context.Context, event *enti
 		return fmt.Errorf("OnFlightBooked: get vip bundle: %w", err)
 	}
 
+	// First, check if we've already processed this flight
+	if event.FlightID == vpBundle.InboundFlightID && vpBundle.InboundFlightBookedAt != nil {
+		return nil // Already processed this inbound flight
+	}
+	if event.FlightID == vpBundle.ReturnFlightID && vpBundle.ReturnFlightBookedAt != nil {
+		return nil // Already processed this return flight
+	}
+
 	switch event.FlightID {
 	case vpBundle.InboundFlightID:
 		vpBundle.InboundFlightBookedAt = &event.Header.PublishedAt
@@ -143,16 +152,18 @@ func (v VipBundleProcessManager) OnFlightBooked(ctx context.Context, event *enti
 			return fmt.Errorf("failed to update vip bundle: %w", err)
 		}
 
-		// book return flight
-		err = v.commandBus.Send(ctx, entities.BookFlight{
-			CustomerEmail:  vpBundle.CustomerEmail,
-			FlightID:       vpBundle.ReturnFlightID,
-			Passengers:     vpBundle.Passengers,
-			ReferenceID:    vpBundle.VipBundleID.String(),
-			IdempotencyKey: event.Header.IdempotencyKey,
-		})
-		if err != nil {
-			return fmt.Errorf("OnBookingMade: sending book flight: %w", err)
+		// Only book return flight if we haven't already
+		if vpBundle.ReturnFlightBookedAt == nil {
+			err = v.commandBus.Send(ctx, entities.BookFlight{
+				CustomerEmail:  vpBundle.CustomerEmail,
+				FlightID:       vpBundle.ReturnFlightID,
+				Passengers:     vpBundle.Passengers,
+				ReferenceID:    vpBundle.VipBundleID.String(),
+				IdempotencyKey: uuid.New().String(), // Generate new idempotency key for return flight
+			})
+			if err != nil {
+				return fmt.Errorf("OnBookingMade: sending book flight: %w", err)
+			}
 		}
 		return nil
 	case vpBundle.ReturnFlightID:

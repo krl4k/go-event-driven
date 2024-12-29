@@ -4,16 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"tickets/internal/application/usecases/booking"
+	"tickets/internal/entities"
+	"tickets/internal/interfaces/message/events"
+	"tickets/internal/interfaces/message/outbox"
+
 	"github.com/ThreeDotsLabs/watermill"
 	trmsql "github.com/avito-tech/go-transaction-manager/drivers/sql/v2"
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
 	trmanager "github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 	"github.com/avito-tech/go-transaction-manager/trm/v2/settings"
 	"github.com/google/uuid"
-	"tickets/internal/application/usecases/booking"
-	"tickets/internal/entities"
-	"tickets/internal/interfaces/message/events"
-	"tickets/internal/interfaces/message/outbox"
 )
 
 type Repository interface {
@@ -75,21 +76,18 @@ func (u *CreateBundleUsecase) CreateBundle(ctx context.Context, req CreateBundle
 		func(ctx context.Context) error {
 			var err error
 
-			bundle, err := entities.NewVipBundle(
-				vipBundleID,
-				bookingID,
-				req.CustomerEmail,
-				req.NumberOfTickets,
-				req.ShowId,
-				req.Passengers,
-				req.InboundFlightID,
-				req.ReturnFlightID,
-			)
-			if err != nil {
-				return fmt.Errorf("create vip bundle: %w", err)
+			bundle := entities.VipBundle{
+				VipBundleID:     vipBundleID,
+				BookingID:       bookingID,
+				CustomerEmail:   req.CustomerEmail,
+				NumberOfTickets: req.NumberOfTickets,
+				ShowId:          req.ShowId,
+				Passengers:      req.Passengers,
+				InboundFlightID: req.InboundFlightID,
+				ReturnFlightID:  req.ReturnFlightID,
 			}
 
-			err = u.repo.Add(ctx, *bundle)
+			err = u.repo.Add(ctx, bundle)
 			if err != nil {
 				return fmt.Errorf("repo vip bundle: %w", err)
 			}

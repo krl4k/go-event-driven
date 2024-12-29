@@ -2,8 +2,9 @@ package entities
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type VipBundle struct {
@@ -128,6 +129,10 @@ type BookingFailed_v1 struct {
 
 	BookingID     uuid.UUID `json:"booking_id"`
 	FailureReason string    `json:"failure_reason"`
+}
+
+func (t BookingFailed_v1) IsInternal() bool {
+	return false
 }
 
 type FlightBooked_v1 struct {

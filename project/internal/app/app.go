@@ -103,6 +103,7 @@ func NewApp(
 	ticketsService := tickets.NewTicketConfirmationService(eventBus, ticketsRepo)
 	showsService := shows.NewShowsService(showsRepo)
 	bookingsService := booking.NewBookTicketsUsecase(
+		eventBus,
 		bookingsRepo,
 		showsRepo,
 		trManager,
