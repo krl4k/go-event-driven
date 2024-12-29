@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
+	"
 	"tickets/internal/entities"
-	"tickets/internal/repository"
-
 	"github.com/google/uuid"
 )
 
@@ -220,6 +220,9 @@ func (v VipBundleProcessManager) OnTaxiBooked(ctx context.Context, event *entiti
 func (v VipBundleProcessManager) OnBookingFailed(ctx context.Context, event *entities.BookingFailed_v1) error {
 	vpBundle, err := v.repository.GetByBookingID(ctx, event.BookingID)
 	if err != nil {
+		if errors.Is(err, repository.ErrVipBundleNotFound) {
+			return nil
+		}
 		return fmt.Errorf("OnBookingFailed: get vip bundle: %w", err)
 	}
 
@@ -238,6 +241,9 @@ func (v VipBundleProcessManager) OnFlightBookingFailed(ctx context.Context, even
 	}
 	vpBundle, err := v.repository.Get(ctx, vpBundleID)
 	if err != nil {
+		if errors.Is(err, repository.ErrVipBundleNotFound) {
+			return nil
+		}
 		return fmt.Errorf("OnFlightBookingFailed: get vip bundle: %w", err)
 	}
 
@@ -255,6 +261,9 @@ func (v VipBundleProcessManager) OnTaxiBookingFailed(ctx context.Context, event 
 	}
 	vpBundle, err := v.repository.Get(ctx, vpBundleID)
 	if err != nil {
+		if errors.Is(err, repository.ErrVipBundleNotFound) {
+			return nil
+		}
 		return fmt.Errorf("OnTaxiBookingFailed: get vip bundle: %w", err)
 	}
 

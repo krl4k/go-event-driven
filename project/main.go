@@ -3,23 +3,28 @@ package main
 import (
 	"context"
 	"fmt"
-	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
-	"github.com/ThreeDotsLabs/go-event-driven/common/log"
-	"github.com/ThreeDotsLabs/watermill"
-	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
-	"github.com/uptrace/opentelemetry-go-extra/otelsql"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"net/http"
 	"os"
 	"os/signal"
 	"tickets/internal/app"
 	"tickets/internal/infrastructure/clients"
 	"tickets/internal/observability"
+
+	commonClients "github.com/ThreeDotsLabs/go-event-driven/common/clients"
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
+	"github.com/ThreeDotsLabs/watermill"
+	"github.com/jmoiron/sqlx"
+	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
+	"github.com/uptrace/opentelemetry-go-extra/otelsql"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("Error loading .env file")
+	}
 	wlogger := watermill.NewStdLogger(false, false)
 
 	gatewayAddr := os.Getenv("GATEWAY_ADDR")

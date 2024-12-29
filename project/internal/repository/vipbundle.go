@@ -105,6 +105,7 @@ func (vb *VipBundle) UpdateByID(
 	vipBundle, err := vb.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, ErrVipBundleNotFound) {
+			log.Printf("skipping update: vip bundle with id %s doesn't exist", id)
 			return entities.VipBundle{}, ErrVipBundleSkipped
 		}
 		return entities.VipBundle{}, err
