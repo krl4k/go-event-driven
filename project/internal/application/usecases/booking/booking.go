@@ -97,7 +97,7 @@ func (s *BookTicketsUsecase) BookTickets(ctx context.Context, req CreateBookingR
 		ctx,
 		trmsql.MustSettings(
 			settings.Must(settings.WithCancelable(true)),
-			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelSerializable}),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
 		),
 		func(ctx context.Context) error {
 			var bookingID uuid.UUID

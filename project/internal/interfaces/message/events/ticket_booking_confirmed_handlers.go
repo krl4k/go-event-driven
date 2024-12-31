@@ -3,10 +3,11 @@ package events
 import (
 	"context"
 	"fmt"
-	"github.com/ThreeDotsLabs/go-event-driven/common/log"
-	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"tickets/internal/entities"
 	"time"
+
+	"github.com/ThreeDotsLabs/go-event-driven/common/log"
+	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 )
 
 func (h *Handler) TicketsToPrintHandler() cqrs.EventHandler {

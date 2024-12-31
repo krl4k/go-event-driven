@@ -2,12 +2,15 @@ package clients
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients"
 	"github.com/ThreeDotsLabs/go-event-driven/common/clients/transportation"
 	"github.com/google/uuid"
 )
+
+var ErrFlightAlreadyBooked = fmt.Errorf("flight tickets already booked")
 
 type TransportationClient struct {
 	clients *clients.Clients
@@ -42,6 +45,11 @@ func (c TransportationClient) BookFlightTicket(ctx context.Context, request *Boo
 	if err != nil {
 		return nil, err
 	}
+
+	if resp.StatusCode() == 409 {
+		return nil, ErrFlightAlreadyBooked
+	}
+
 	if resp.JSON201 == nil {
 		return nil, fmt.Errorf("unexpected response: %v", resp)
 	}
@@ -62,6 +70,8 @@ type BookTaxiResponse struct {
 	BookingID uuid.UUID
 }
 
+var ErrTaxiAlreadyBooked = errors.New("taxi already booked")
+
 func (c TransportationClient) BookTaxi(ctx context.Context, request *BookTaxiRequest) (*BookTaxiResponse, error) {
 	resp, err := c.clients.Transportation.PutTaxiBookingWithResponse(ctx, transportation.TaxiBookingRequest{
 		CustomerEmail:      request.CustomerEmail,
@@ -74,6 +84,10 @@ func (c TransportationClient) BookTaxi(ctx context.Context, request *BookTaxiReq
 		return nil, err
 	}
 
+	if resp.StatusCode() == 409 {
+		return nil, ErrTaxiAlreadyBooked
+	}
+
 	if resp.JSON201 == nil {
 		return nil, fmt.Errorf("unexpected response: %v", resp)
 	}
@@ -81,4 +95,17 @@ func (c TransportationClient) BookTaxi(ctx context.Context, request *BookTaxiReq
 	return &BookTaxiResponse{
 		BookingID: resp.JSON201.BookingId,
 	}, nil
+}
+
+func (c TransportationClient) CancelFlightTickets(ctx context.Context, ticketID uuid.UUID) error {
+	_, err := c.clients.Transportation.DeleteFlightTicketsTicketIdWithResponse(ctx, ticketID)
+	if err != nil {
+		return fmt.Errorf("failed to cancel flight tickets: %w", err)
+	}
+
+	if err != nil {
+		return fmt.Errorf("delete flight: %w", err)
+	}
+
+	return nil
 }

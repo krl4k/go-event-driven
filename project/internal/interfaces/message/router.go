@@ -128,6 +128,7 @@ func NewRouter(
 		commandsHandler.BookShowTicketsHandler(),
 		commandsHandler.BookFlightHandler(),
 		commandsHandler.BookTaxiHandler(),
+		commandsHandler.CancelFlightTicketsHandler(),
 	)
 	if err != nil {
 		return nil, err

@@ -71,7 +71,7 @@ func (u *CreateBundleUsecase) CreateBundle(ctx context.Context, req CreateBundle
 		ctx,
 		trmsql.MustSettings(
 			settings.Must(settings.WithCancelable(true)),
-			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelSerializable}),
+			trmsql.WithTxOptions(&sql.TxOptions{Isolation: sql.LevelRepeatableRead}),
 		),
 		func(ctx context.Context) error {
 			var err error

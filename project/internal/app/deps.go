@@ -49,4 +49,5 @@ type PaymentsService interface {
 type TransportationService interface {
 	BookTaxi(ctx context.Context, request *clients.BookTaxiRequest) (*clients.BookTaxiResponse, error)
 	BookFlightTicket(ctx context.Context, request *clients.BookFlightTicketRequest) (*clients.BookFlightTicketResponse, error)
+	CancelFlightTickets(ctx context.Context, ticketID uuid.UUID) error
 }

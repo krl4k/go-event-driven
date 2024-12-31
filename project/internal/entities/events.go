@@ -1,8 +1,9 @@
 package entities
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Event interface {
@@ -153,4 +154,22 @@ type BookingMade_v0 struct {
 
 func (b BookingMade_v0) IsInternal() bool {
 	return false
+}
+
+type VipBundleCreated_v1 struct {
+	Header      EventHeader `json:"header"`
+	VipBundleID uuid.UUID   `json:"vip_bundle_id"`
+	BookingID   uuid.UUID   `json:"booking_id"`
+}
+
+type VipBundleUpdated_v1 struct {
+	Header      EventHeader `json:"header"`
+	VipBundleID uuid.UUID   `json:"vip_bundle_id"`
+	// Add other relevant fields as necessary
+}
+
+type VipBundleCancelled_v1 struct {
+	Header      EventHeader `json:"header"`
+	VipBundleID uuid.UUID   `json:"vip_bundle_id"`
+	// Add other relevant fields as necessary
 }

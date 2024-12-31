@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"tickets/internal/entities"
 	"tickets/internal/infrastructure/clients"
 
@@ -21,11 +22,29 @@ func (h *Handler) BookTaxiHandler() cqrs.CommandHandler {
 				ReferenceId:        command.ReferenceID,
 				IdempotencyKey:     command.IdempotencyKey,
 			})
-			if err != nil {
-				return err
-			}
-			log.FromContext(ctx).Info("Taxi booked", "response", resp)
 
+			if err != nil {
+				log.FromContext(ctx).Info("Error booking taxi", "error", err)
+
+				if errors.Is(err, clients.ErrTaxiAlreadyBooked) {
+					// Publish TaxiBookingFailed event
+					err := h.eb.Publish(ctx, &entities.TaxiBookingFailed_v1{
+						Header:        entities.NewEventHeader(),
+						ReferenceID:   command.ReferenceID,
+						FailureReason: err.Error(),
+					})
+					if err != nil {
+						return err
+					}
+					return nil
+				}
+
+				return nil // Don't retry on failure
+			}
+
+			log.FromContext(ctx).Info("Taxi booked successfully", "response", resp)
+
+			// Publish success event if needed
 			err = h.eb.Publish(ctx, &entities.TaxiBooked_v1{
 				Header:        entities.NewEventHeader(),
 				TaxiBookingID: resp.BookingID,

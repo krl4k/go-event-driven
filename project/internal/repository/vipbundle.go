@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"tickets/internal/entities"
 
 	trmsqlx "github.com/avito-tech/go-transaction-manager/drivers/sqlx/v2"
@@ -46,7 +45,7 @@ func (vb *VipBundle) Add(ctx context.Context, vipBundle entities.VipBundle) erro
 	if err != nil {
 		return fmt.Errorf("insert vip bundle: %w", err)
 	}
-	return err
+	return nil
 }
 
 func (vb *VipBundle) Get(ctx context.Context, vipBundleID uuid.UUID) (entities.VipBundle, error) {
@@ -104,10 +103,10 @@ func (vb *VipBundle) UpdateByID(
 ) (entities.VipBundle, error) {
 	vipBundle, err := vb.Get(ctx, id)
 	if err != nil {
-		if errors.Is(err, ErrVipBundleNotFound) {
-			log.Printf("skipping update: vip bundle with id %s doesn't exist", id)
-			return entities.VipBundle{}, ErrVipBundleSkipped
-		}
+		// if errors.Is(err, ErrVipBundleNotFound) {
+		// 	log.Printf("skipping update: vip bundle with id %s doesn't exist", id)
+		// 	return entities.VipBundle{}, ErrVipBundleSkipped
+		// }
 		return entities.VipBundle{}, err
 	}
 
@@ -139,10 +138,10 @@ func (vb *VipBundle) UpdateByBookingID(
 ) (entities.VipBundle, error) {
 	vipBundle, err := vb.GetByBookingID(ctx, bookingID)
 	if err != nil {
-		if errors.Is(err, ErrVipBundleNotFound) {
-			log.Printf("skipping update: vip bundle with booking id %s doesn't exist", bookingID)
-			return entities.VipBundle{}, ErrVipBundleSkipped
-		}
+		// if errors.Is(err, ErrVipBundleNotFound) {
+		// 	log.Printf("skipping update: vip bundle with booking id %s doesn't exist", bookingID)
+		// 	return entities.VipBundle{}, ErrVipBundleSkipped
+		// }
 		return entities.VipBundle{}, err
 	}
 

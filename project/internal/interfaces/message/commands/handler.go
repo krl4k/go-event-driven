@@ -6,6 +6,7 @@ import (
 	"tickets/internal/infrastructure/clients"
 
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
+	"github.com/google/uuid"
 )
 
 type PaymentsService interface {
@@ -19,6 +20,7 @@ type ReceiptsService interface {
 type TransportationBooker interface {
 	BookTaxi(ctx context.Context, request *clients.BookTaxiRequest) (*clients.BookTaxiResponse, error)
 	BookFlightTicket(ctx context.Context, request *clients.BookFlightTicketRequest) (*clients.BookFlightTicketResponse, error)
+	CancelFlightTickets(ctx context.Context, ticketID uuid.UUID) error
 }
 
 type Handler struct {

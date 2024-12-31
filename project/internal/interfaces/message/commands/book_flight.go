@@ -6,6 +6,8 @@ import (
 
 	"tickets/internal/infrastructure/clients"
 
+	"errors"
+
 	"github.com/ThreeDotsLabs/go-event-driven/common/log"
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 )
@@ -25,20 +27,20 @@ func (h *Handler) BookFlightHandler() cqrs.CommandHandler {
 			log.FromContext(ctx).Info("Flight booked: ", "response", resp)
 			if err != nil {
 				log.FromContext(ctx).Info("Error booking flight", "error", err)
-				err := h.eb.Publish(ctx, &entities.FlightBookingFailed_v1{
-					Header:        entities.NewEventHeader(),
-					FlightID:      command.FlightID,
-					ReferenceID:   command.ReferenceID,
-					FailureReason: err.Error(),
-				})
-				if err != nil {
-					return err
-				}
 
-				// if errors.Is(err, clients.ErrFlightBookingFailed) {
-				// 	// we don't want to retry booking the flight
-				// 	return nil
-				// }
+				if errors.Is(err, clients.ErrFlightAlreadyBooked) {
+					err := h.eb.Publish(ctx, &entities.FlightBookingFailed_v1{
+						Header:        entities.NewEventHeader(),
+						FlightID:      command.FlightID,
+						ReferenceID:   command.ReferenceID,
+						FailureReason: err.Error(),
+					})
+					if err != nil {
+						return err
+					}
+					// Don't retry if flight is already booked
+					return nil
+				}
 				return err
 			}
 
